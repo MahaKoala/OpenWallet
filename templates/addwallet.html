@@ -1,0 +1,57 @@
+<html>
+
+<head>
+
+    <title>
+        Add Wallet {{g_network_type}}
+    </title>
+    <script>
+        document.addEventListener("DOMContentLoaded", ()=> {
+            let submit = document.querySelector("#submit");
+            let nemonic = document.querySelector("#nemonic");
+            let label = document.querySelector("#label");
+            let error = document.querySelector("#error");
+            let success = document.querySelector("#success");
+
+            submit.addEventListener("click", ()=>{
+                success.innerHTML = "";
+                error.innerHTML = "";
+
+                fetch("/api/v1/addwallet", {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        nemonic: nemonic.value,
+                        label: label.value
+                    })
+                }).then((response)=> {
+                    return response.json();                  
+                }).then(payload => {
+                    if (payload["error"]) {
+                        throw payload["error"]
+                    }
+                    success.innerHTML = "Added successfully."
+                }).catch(errorMessage => {
+                    error.innerHTML = errorMessage;
+                });
+            });
+        })
+    </script>
+</head>
+
+<body>
+    <h2><a href="/">Home</a></h2>
+    <h2>Add Wallet</h2>
+    <h4 id="error" style="color:firebrick"></h4>
+    <h4 id="success" style="color:green"></h4>
+    <div style="display: flex; flex-direction: column;">
+        <label>Mnemonic: <textarea id="nemonic" rows=8 cols=40></textarea></label>
+        <label>Label:
+            <input id="label"/>
+        </label>
+        <div>
+            <button id="submit">Add</button>
+        </div>
+    </div>
+</body>
+
+</html>

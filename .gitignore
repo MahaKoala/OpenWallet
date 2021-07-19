@@ -1,0 +1,20 @@
+*.sw?
+*.pyc
+
+local*.cfg
+
+.coverage
+.tox/
+build/
+htmlcov/
+dist/
+
+# python virtualenv
+bin/
+data/
+include/
+lib/
+pyvenv.cfg
+
+.DS_Store
+

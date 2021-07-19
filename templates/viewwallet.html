@@ -1,0 +1,30 @@
+<html>
+
+<head>
+    <title>
+        View Wallet {{g_network_type}}
+    </title>
+    <style>
+        a {
+            margin-right: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <h2><a href="/">Home</a> <a href="/send">Send</a> <a href="/receive">Receive</a></h2>
+    <h2>Wallet Overview</h2>
+    <p>Wallet ID: {{wallet._id}}</p>
+    <p>Wallet Label: {{wallet._label}}</p>
+    <p>Balance: {{wallet._balance}}</p>
+
+    <h2>addresses (address, balance, ischange)</h2>
+    <ol>
+    {% for address in wallet._addresses: %}
+        <li>
+            {{str(address._address)}}, {{address._balance}}, {{address._is_change}}
+        </li>
+    {% endfor %}    
+</body>
+
+</html>

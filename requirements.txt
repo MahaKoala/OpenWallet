@@ -1,0 +1,5 @@
+Flask==1.1.2
+mnemonic==0.19
+bip32==1.0
+python-bitcoinlib==0.11.0
+requests==2.25.1

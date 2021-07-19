@@ -1,0 +1,20 @@
+<html>
+  <head>
+    <title>
+      OpenWallet {{g_network_type}}
+    </title>
+  </head>
+
+  <body>
+    <h2>Network Type: {{g_network_type}}</h2>
+    <p>id, network, label</p>
+    {% for wallet in wallets: %}
+    <p>
+      {{wallet._id}}, {{wallet._network}}, {{wallet._label}}, 
+      <a href="/viewwallet/{{wallet._id}}">Open</a>
+    </p>
+    {% endfor %}
+    
+    <a href="/addwallet">Add Wallet</a>
+  </body>
+</html>
