@@ -6,9 +6,27 @@ import utils
 import json
 import os
 from config import Config, NETWORK_MAINNET, NETWORK_TESTNET
+import logging
+import bitcoin
+import os
 
 app = Flask(__name__)
-is_mainnet = False
+if app.env == 'development':
+    logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+else:
+    logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
+
+
+if Config.Network == NETWORK_MAINNET:
+    logging.debug("Selecting mainnet")
+    bitcoin.SelectParams("mainnet")
+else:
+    logging.debug("Selecting testnet")
+    bitcoin.SelectParams("testnet")
+
+# global variable to all templates
+app.jinja_env.globals['g_network_type'] = "Main Net" if Config.Network == NETWORK_MAINNET \
+    else "Test Net"
 
 @app.route('/js/<path:path>')
 def send_js(path):
@@ -28,7 +46,7 @@ def index():
     wallets = loadwallets()
     network = "Main Net" if Config.Network == NETWORK_MAINNET \
         else "Test Net"
-    return render_template('index.html', wallets=wallets, g_network_type=network)
+    return render_template('index.html', wallets=wallets)
 
 ''' REST API '''
 @app.route('/api/v1/addwallet', methods=['POST'])
@@ -48,15 +66,3 @@ def api_addwallet():
         }), 500
 
     return jsonify({}), 200
-
-if __name__ == '__main__':
-    if Config.Network == NETWORK_MAINNET:
-        bitcoin.SelectParams("mainnet")
-    else:
-        bitcoin.SelectParams("testnet")
-
-    # global variable to all templates
-    app.jinja_env.globals['g_network_type'] = "Main Net" if Config.Network == NETWORK_MAINNET \
-        else "Test Net"
-
-    app.run(host='localhost')

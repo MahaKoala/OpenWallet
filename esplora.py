@@ -7,7 +7,7 @@ ENDPOINT_TESTNET = "https://blockstream.info/testnet/api/"
 ENDPOINT_MAINNET = "https://blockstream.info/api/"
 
 def getendpoint():
-    return ENDPOINT_MAINNET if not Config.Network == NETWORK_MAINNET else ENDPOINT_TESTNET
+    return ENDPOINT_MAINNET if Config.Network == NETWORK_MAINNET else ENDPOINT_TESTNET
 
 def http_get(url, retry_on_5xx=True) -> Response:
    response = requests.get(url)
@@ -20,7 +20,7 @@ def http_get(url, retry_on_5xx=True) -> Response:
    return response
 
 # Returns true if the address exists on the blockchain.
-def existaddress(bitcoinaddr: CBitcoinAddress, testnet=False) -> bool:
+def existaddress(bitcoinaddr: CBitcoinAddress) -> bool:
     response = http_get(
         "%saddress/%s" % (getendpoint(), str(bitcoinaddr)))
     assert response.status_code == 200, ("HTTP Error: %s" % (response.text,))
@@ -35,7 +35,7 @@ class AddressResponse:
     def __init__(self, balance):
         self._balance = balance
 
-def address(address: CBitcoinAddress, testnet=False) -> AddressResponse:
+def address(address: CBitcoinAddress) -> AddressResponse:
     addr_url = "{endpoint}address/{addr}"
     response = http_get(addr_url.format(
         endpoint=getendpoint(), addr=str(address)))

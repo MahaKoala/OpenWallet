@@ -22,7 +22,7 @@
     <ol>
     {% for address in wallet._addresses: %}
         <li>
-            {{str(address._address)}}, {{address._balance}}, {{address._is_change}}
+            {{address._address.__str__()}}, {{address._balance}}, {{address._is_change}}
         </li>
     {% endfor %}    
 </body>

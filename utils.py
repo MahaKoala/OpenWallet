@@ -46,7 +46,7 @@ def viewwallet(wallet_id) -> Wallet:
 
         wallet: Wallet = Wallet.fromdb(row)
         seed = Mnemonic.to_seed(wallet._mnemonic)
-        wallet.merge(discovery.discover_bip84_wallet(seed))
+        wallet.merge(discovery.discover_bip84_wallet(seed, gap_limit=Config.GapLimit))
         return wallet
 
 '''

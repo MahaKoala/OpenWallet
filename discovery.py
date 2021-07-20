@@ -65,9 +65,9 @@ def bip84_discover_addresses(seed: bytes, num_of_accounts: int, is_change: bool,
 
     return addrs
 
-def discover_bip84_wallet(seed: bytes) -> Wallet:
+
+def discover_bip84_wallet(seed: bytes, gap_limit=20) -> Wallet:
     bip84_path = Bip44Path(seed, 84, 0)
-    gap_limit = 1
 
      # discovering accounts according to "Account discovery" in BIP 44.
     num_of_accounts = 0
