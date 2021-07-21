@@ -16,7 +16,6 @@ if app.env == 'development':
 else:
     logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
-
 if Config.Network == NETWORK_MAINNET:
     logging.debug("Selecting mainnet")
     bitcoin.SelectParams("mainnet")
@@ -25,12 +24,20 @@ else:
     bitcoin.SelectParams("testnet")
 
 # global variable to all templates
-app.jinja_env.globals['g_network_type'] = "Main Net" if Config.Network == NETWORK_MAINNET \
-    else "Test Net"
+if Config.Network == NETWORK_MAINNET:
+    app.jinja_env.globals['g_network_type'] = "Main Net"
+    app.jinja_env.globals['g_explorer'] = Config.ExplorerPrefix
+else:
+    app.jinja_env.globals['g_network_type'] = "Test Net"
+    app.jinja_env.globals['g_explorer'] = Config.TestNetExplorerPrefix
 
 @app.route('/js/<path:path>')
 def send_js(path):
     return send_from_directory('js', path)
+
+@app.route('/css/<path:path>')
+def send_css(path):
+    return send_from_directory('css', path)
 
 @app.route('/addwallet')
 def addwallet():

@@ -4,15 +4,17 @@
     <title>
         View Wallet {{g_network_type}}
     </title>
+    <link rel="stylesheet" href="/css/reset.css"/>
     <style>
-        a {
+        #narbar a {
             margin-right: 20px;
+            
         }
     </style>
 </head>
 
 <body>
-    <h2><a href="/">Home</a> <a href="/send">Send</a> <a href="/receive">Receive</a></h2>
+    <h2 id="narbar"><a href="/">Home</a> <a href="/send">Send</a> <a href="/receive">Receive</a></h2>
     <h2>Wallet Overview</h2>
     <p>Wallet ID: {{wallet._id}}</p>
     <p>Wallet Label: {{wallet._label}}</p>
@@ -22,7 +24,9 @@
     <ol>
     {% for address in wallet._addresses: %}
         <li>
-            {{address._address.__str__()}}, {{address._balance}}, {{address._is_change}}
+            <a href="{{g_explorer}}/address/{{address._address.__str__()}}" target="_blank">{{address._address.__str__()}}</a>, 
+            {{address._balance}},
+            {{address._is_change}}
         </li>
     {% endfor %}    
 </body>
