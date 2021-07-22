@@ -15,3 +15,9 @@ class Config():
 
     # Same as "ExplorerPrefix", except it is for testnet.
     TestNetExplorerPrefix = "https://blockstream.info/testnet"
+
+    # Endpoint to an instance of Esplora (https://github.com/Blockstream/esplora)
+    EsploraEndpoint = "https://blockstream.info/api/"
+
+    # Same as "EsploraEndpoint", except it is for testnet.
+    TestNetExploraEndpoint = "https://blockstream.info/testnet/api/"

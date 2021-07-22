@@ -2,9 +2,10 @@ import requests
 from requests import Response
 from bitcoin.wallet import CBitcoinAddress
 from config import Config, NETWORK_MAINNET
+import logging
 
-ENDPOINT_TESTNET = "https://blockstream.info/testnet/api/"
-ENDPOINT_MAINNET = "https://blockstream.info/api/"
+ENDPOINT_TESTNET = Config.TestNetExploraEndpoint
+ENDPOINT_MAINNET = Config.EsploraEndpoint
 
 def getendpoint():
     return ENDPOINT_MAINNET if Config.Network == NETWORK_MAINNET else ENDPOINT_TESTNET
