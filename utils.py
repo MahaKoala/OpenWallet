@@ -1,10 +1,11 @@
 import sqlite3
-from typing import List, Set
+from typing import List, Set, Dict, Tuple
 from mnemonic import Mnemonic
 import bitcoin
 import logging
 import os
 import discovery
+from wallet import Wallet
 from config import Config
 
 SQLITE_DB_FILE = os.path.dirname(
@@ -12,20 +13,28 @@ SQLITE_DB_FILE = os.path.dirname(
 
 EnglishMnemonic = Mnemonic("english")
 
-class Wallet(discovery.Wallet):
-    def __init__(self, id, network, mnemonic, label):
-        self._id = id
-        self._network = network
-        self._mnemonic = mnemonic
-        self._label = label
+class AddressView():
+    def __init__(self, bitcoin_address: str, value: int, is_change: bool):
+        self.bitcoin_address = bitcoin_address
+        self.value = value
+        self.is_change = is_change
+        pass
+
+class WalletView():
+    def __init__(self, wallet_id, network, label):
+        self.wallet_id = wallet_id
+        self.network = network
+        self.label = label
+
+    def _loadwallet(self, wallet: Wallet):
+        self.balance = wallet.balance
+
+        self.addresses: List[AddressView] = []
+        for addr in wallet.receive_addresses + wallet.change_addresses + wallet.new_addresses:
+            self.addresses.append(AddressView(
+                str(addr.address), addr.balance, addr.is_change))
     
-    def merge(self, wallet: discovery.Wallet):
-        self._balance = wallet._balance
-        self._addresses = wallet._addresses
-        
-    @classmethod
-    def fromdb(cls, row):
-        return Wallet(*row)
+gWalletMap: Dict[int, Tuple[WalletView, Wallet]]={}
 
 def addwallet(nemonic: str, label: str) -> bool:
     assert validate_nemonic(nemonic) == None
@@ -37,17 +46,31 @@ def addwallet(nemonic: str, label: str) -> bool:
         conn.commit()
     return True
 
-def viewwallet(wallet_id) -> Wallet:
+def viewwallet(wallet_id) -> WalletView:
+    # Return the wallet from the cache if found.
+    if wallet_id in gWalletMap.keys():
+        wallet = gWalletMap[wallet_id][1]
+        wallet.sync()
+
+        wallet_view = gWalletMap[wallet_id][0]
+        wallet_view._loadwallet(wallet)
+        return wallet_view
+
+    # Load from the database
     with sqlite3.connect(SQLITE_DB_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id, network, mnemonic, label FROM Wallets WHERE id = ?", (wallet_id,))
         row = cursor.fetchone()
         assert row is not None
 
-        wallet: Wallet = Wallet.fromdb(row)
-        seed = Mnemonic.to_seed(wallet._mnemonic)
-        wallet.merge(discovery.discover_bip84_wallet(seed, gap_limit=Config.GapLimit))
-        return wallet
+        wallet_id, network, mnemonic, label = row
+        seed = Mnemonic.to_seed(mnemonic)
+        wallet = Wallet(seed)
+        wallet.sync()
+        wallet_view = WalletView(wallet_id, network, label)
+        wallet_view._loadwallet(wallet)
+        gWalletMap[wallet_id] = (wallet_view, wallet)
+        return wallet_view
 
 '''
 return None if nemonic is valid, otherwise error message.
@@ -57,14 +80,14 @@ def validate_nemonic(nemonic: str) -> str:
         return "Invalid nemonic."
     return None
 
-def loadwallets() -> List[Wallet]:
+def loadwallets() -> List[WalletView]:
     wallets = []
     with sqlite3.connect(SQLITE_DB_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id, network, mnemonic, label FROM Wallets")
         for row in cursor:
-            wallet = Wallet.fromdb(row)
-            if Config.Network == wallet._network:
-                wallets.append(wallet)
+            wallet_id, network, mnemonic, label = row
+            if Config.Network == network:
+                wallets.append(WalletView(wallet_id, network, label))
     return wallets
 

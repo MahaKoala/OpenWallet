@@ -1,7 +1,7 @@
 import sqlite3
 from flask import Flask, render_template, Response, send_from_directory, jsonify
 from flask import request
-from utils import loadwallets, validate_nemonic
+from utils import loadwallets, validate_nemonic, WalletView
 import utils
 import json
 import os
@@ -45,7 +45,7 @@ def addwallet():
 
 @app.route('/viewwallet/<wallet_id>')
 def viewwallet(wallet_id):
-    wallet: Wallet = utils.viewwallet(wallet_id)
+    wallet: WalletView = utils.viewwallet(wallet_id)
     return render_template('viewwallet.html', wallet=wallet)
 
 @app.route('/')

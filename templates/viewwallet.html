@@ -16,17 +16,17 @@
 <body>
     <h2 id="narbar"><a href="/">Home</a> <a href="/send">Send</a> <a href="/receive">Receive</a></h2>
     <h2>Wallet Overview</h2>
-    <p>Wallet ID: {{wallet._id}}</p>
-    <p>Wallet Label: {{wallet._label}}</p>
-    <p>Balance: {{wallet._balance}}</p>
+    <p>Wallet ID: {{wallet.wallet_id}}</p>
+    <p>Wallet Label: {{wallet.label}}</p>
+    <p>Balance: {{wallet.balance}}</p>
 
     <h2>addresses (address, balance, ischange)</h2>
     <ol>
-    {% for address in wallet._addresses: %}
+    {% for address in wallet.addresses: %}
         <li>
-            <a href="{{g_explorer}}/address/{{address._address.__str__()}}" target="_blank">{{address._address.__str__()}}</a>, 
-            {{address._balance}},
-            {{address._is_change}}
+            <a href="{{g_explorer}}/address/{{address.bitcoin_address}}" target="_blank">{{address.bitcoin_address}}</a>, 
+            {{address.value}},
+            {{address.is_change}}
         </li>
     {% endfor %}    
 </body>

@@ -21,3 +21,6 @@ FLASK_APP=server.py FLASK_ENV=development flask run
 # Configuration
 Modify `config.py` for
 * Select testnet or mainnet.
+
+# Assumption on using OpenWallet
+* Only a single user per instance of OpenWallet.

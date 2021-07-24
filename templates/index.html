@@ -11,8 +11,8 @@
     <p>id, network, label</p>
     {% for wallet in wallets: %}
     <p>
-      {{wallet._id}}, {{wallet._network}}, {{wallet._label}}, 
-      <a href="/viewwallet/{{wallet._id}}">Open</a>
+      {{wallet.wallet_id}}, {{wallet.network}}, {{wallet.label}}, 
+      <a href="/viewwallet/{{wallet.wallet_id}}">Open</a>
     </p>
     {% endfor %}
     

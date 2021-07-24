@@ -1,8 +1,11 @@
 import requests
 from requests import Response
 from bitcoin.wallet import CBitcoinAddress
+from bitcoin.core import CScript, CTxOut
 from config import Config, NETWORK_MAINNET
+import binascii
 import logging
+from typing import List, Set, Dict
 
 ENDPOINT_TESTNET = Config.TestNetExploraEndpoint
 ENDPOINT_MAINNET = Config.EsploraEndpoint
@@ -34,7 +37,7 @@ def existaddress(bitcoinaddr: CBitcoinAddress) -> bool:
 
 class AddressResponse:
     def __init__(self, balance):
-        self._balance = balance
+        self.balance = balance
 
 def address(address: CBitcoinAddress) -> AddressResponse:
     addr_url = "{endpoint}address/{addr}"
@@ -47,3 +50,53 @@ def address(address: CBitcoinAddress) -> AddressResponse:
     response = AddressResponse(balance)
     return response
 
+
+class UnspentOutput:
+    def __init__(self, txid, vout, value):
+        self.txid = txid
+        self.vout = vout
+        self.value = value
+
+'''
+Retrives the set of utxo
+'''
+def utxo(address: CBitcoinAddress) -> Set[UnspentOutput]:
+    utxo_url = "{endpoint}address/{addr}/utxo"
+    response = http_get(utxo_url.format(
+        endpoint=getendpoint(), addr=str(address)))
+    assert response.status_code == 200, "Failed to get utxo of " + str(address)
+    json = response.json()
+    utxos = set()
+    for elm in json:
+        if elm["status"]["confirmed"]:
+            utxos.add(UnspentOutput(elm["txid"], elm["vout"], elm["value"]))
+    return utxos
+
+def txout(utxo: UnspentOutput) -> CTxOut:
+    tx_url = "{endpoint}tx/{txid}"
+    tx_response = http_get(tx_url.format(endpoint=getendpoint(), addr=utxo._txid))
+    assert tx_response.status_code == 200, "Failed to get transaction of ID " + utxo._txid
+
+    tx_json = tx_response.json()
+    assert len(
+        tx_json["vout"]) <= utxo._vout, "utxo vout is out of the bound (txid=" + utxo._txid + ")"
+    txout_json = tx_json["vout"][utxo._vout]
+    b = binascii.unhexlify(txout_json["scriptpubkey"])
+    scriptpubkey: CScript = CScript(b)
+    return CTxOut(value=txout_json["value"], scriptpubkey=scriptpubkey)
+
+
+# def tx(txid) -> CTransaction:
+#     '''
+#     @txid: hex of the transaction ID 
+
+#     @return:
+#     '''
+#     tx_url = "{endpoint}tx/{txid}"
+#     response = http_get(tx_url.format(endpoint=getendpoint(), addr=txid))
+#     assert response.status_code == 200, "Failed to get transaction of ID " + txid
+#     json = response.json()
+#     txid
+
+
+    
