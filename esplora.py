@@ -5,10 +5,15 @@ from bitcoin.core import CScript, CTxOut
 from config import Config, NETWORK_MAINNET
 import binascii
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Set, Dict
+import time
 
 ENDPOINT_TESTNET = Config.TestNetExploraEndpoint
 ENDPOINT_MAINNET = Config.EsploraEndpoint
+
+gThreadPoolExecutor: ThreadPoolExecutor = ThreadPoolExecutor(
+    Config.ThreadPoolMaxWorkers)
 
 def getendpoint():
     return ENDPOINT_MAINNET if Config.Network == NETWORK_MAINNET else ENDPOINT_TESTNET
@@ -50,6 +55,15 @@ def address(address: CBitcoinAddress) -> AddressResponse:
     response = AddressResponse(balance)
     return response
 
+def addresses(addresses: [CBitcoinAddress]) -> List[AddressResponse]:
+    future_addresses = [gThreadPoolExecutor.submit(
+        address, addr) for addr in addresses]
+    address_responses = []
+    start_time = time.time()
+    for future_address in as_completed(future_addresses):
+        address_responses.append(future_address.result())
+    logging.debug("Took %d ms to complete addresses" % ((time.time() - start_time)*1000, ))
+    return address_responses
 
 class UnspentOutput:
     def __init__(self, txid, vout, value):

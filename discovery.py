@@ -62,16 +62,18 @@ def discover_bip84_wallet(seed: bytes, gap_limit=20) -> Wallet:
     # Populate addresses in the Wallet.
     wallet = Wallet(seed)
     wallet.balance = 0
-    for addr in receiving_addrs:
-        address_resopnse = esplora.address(addr.address)
+    receiving_address_responses = esplora.addresses(
+        [address.address for address in receiving_addrs])
+    for i, address_resopnse in enumerate(receiving_address_responses):
         wallet.balance += address_resopnse.balance
-        addr.balance = address_resopnse.balance
-        wallet.receive_addresses.append(addr)
+        receiving_addrs[i].balance = address_resopnse.balance
+        wallet.receive_addresses.append(receiving_addrs[i])
 
-    for addr in change_addrs:
-        address_resopnse = esplora.address(addr.address)
+    change_address_responses = esplora.addresses(
+        [address.address for address in change_addrs])
+    for i, address_resopnse in enumerate(change_address_responses):
         wallet.balance += address_resopnse.balance
-        addr.balance = address_resopnse.balance
-        wallet.change_addresses.append(addr)
+        change_addrs[i].balance = address_resopnse.balance
+        wallet.change_addresses.append(change_addrs[i])
 
     return wallet
