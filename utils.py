@@ -46,7 +46,12 @@ def addwallet(nemonic: str, label: str) -> bool:
         conn.commit()
     return True
 
-def viewwallet(wallet_id) -> WalletView:
+def newaddress(wallet_id: int) -> str:
+    wallet: Wallet = gWalletMap[wallet_id][1]
+    new_address = wallet.new_address()
+    return str(new_address)
+
+def viewwallet(wallet_id: int) -> WalletView:
     # Return the wallet from the cache if found.
     if wallet_id in gWalletMap.keys():
         wallet = gWalletMap[wallet_id][1]

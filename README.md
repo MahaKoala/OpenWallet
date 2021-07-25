@@ -24,3 +24,6 @@ Modify `config.py` for
 
 # Assumption on using OpenWallet
 * Only a single user per instance of OpenWallet.
+
+# JS dependencies
+* QR code generation code is borrowed from https://github.com/nimiq/qr-creator.

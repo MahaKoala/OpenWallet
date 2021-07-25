@@ -47,7 +47,7 @@ class Bip44Path:
         self._purpose = purpose
         self._coin_type = coin_type
 
-    def derive_pubkey(self, account, change, address_index) -> bytes:
+    def derive_pubkey(self, account, change: int, address_index) -> bytes:
         path = "m/{purpose}'/{coin_type}'/{account}'/{change}/{index}".format(
             purpose=self._purpose, coin_type=self._coin_type, account=account, change=change,
             index=address_index)
@@ -70,17 +70,18 @@ class Wallet:
     def new_address(self) -> CBitcoinAddress:
         # Find the last used index of account 0.
         last_used_index = -1
-        for receive_address in self.receive_addresses:
-            if receive_address.account_no == 0 and receive_address.address_index > last_index:
-                last_index = receive_address.address_index
-
+        for receive_address in self.receive_addresses + self.new_addresses:
+            if receive_address.account_no == 0 and receive_address.address_index > last_used_index:
+                last_used_index = receive_address.address_index
+        
         next_index = last_used_index + 1
 
-        pubkey: bytes = self._bip84_path.derive_pubkey(0, False, next_index)
+        pubkey: bytes = self._bip84_path.derive_pubkey(0, 0, next_index)
         p2wpkh = bitcoin.core.CScript([OP_0, Hash160(pubkey)])
         p2wpkh_addr = P2WPKHBitcoinAddress.from_scriptPubKey(p2wpkh)
 
         self.new_addresses.append(Address(False, next_index, 0, p2wpkh_addr, 0))
+        return p2wpkh_addr
 
     def sync(self):
         bip84_wallet = discovery.discover_bip84_wallet(self._seed, Config.GapLimit)

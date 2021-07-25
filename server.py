@@ -45,8 +45,12 @@ def addwallet():
 
 @app.route('/viewwallet/<wallet_id>')
 def viewwallet(wallet_id):
-    wallet: WalletView = utils.viewwallet(wallet_id)
-    return render_template('viewwallet.html', wallet=wallet)
+    wallet: WalletView = utils.viewwallet(int(wallet_id))
+    return render_template('viewwallet.html', wallet=wallet, wallet_id=wallet_id)
+
+@app.route('/viewwallet/<wallet_id>/receive')
+def receive(wallet_id):
+    return render_template('receive.html', wallet_id=wallet_id)
 
 @app.route('/')
 def index():
@@ -73,3 +77,15 @@ def api_addwallet():
         }), 500
 
     return jsonify({}), 200
+
+@app.route('/api/v1/wallet/<wallet_id>/newaddress', methods=['GET'])
+def api_newaddress(wallet_id):
+    newaddress = utils.newaddress(int(wallet_id))
+    return jsonify({
+        'newaddress': newaddress
+    }), 200
+    # except Exception as e:
+    #     logging.debug(str(e))
+    #     return jsonify({
+    #         'error': "Something went wrong."
+    #     }), 400
