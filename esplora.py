@@ -28,14 +28,17 @@ def http_get(url, retry_on_5xx=True) -> Response:
       response = requests.get(url)
    return response
 
-# Returns true if the address exists on the blockchain.
+gExistedAddresses = set()
 def existaddress(bitcoinaddr: CBitcoinAddress) -> bool:
+    if str(bitcoinaddr) in gExistedAddresses:
+        return True
     response = http_get(
         "%saddress/%s" % (getendpoint(), str(bitcoinaddr)))
     assert response.status_code == 200, ("HTTP Error: %s" % (response.text,))
 
     json = response.json()
     if json["chain_stats"]["tx_count"] != 0:
+        gExistedAddresses.add(str(bitcoinaddr))
         return True
 
     return False
