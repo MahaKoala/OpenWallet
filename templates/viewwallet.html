@@ -10,6 +10,46 @@
             margin-right: 20px;
         }
     </style>
+
+    <script>
+        gRequestSyncInternvalId = 0;
+        function setupRequestSync() {
+            if (gRequestSyncInternvalId === 0) {
+                gRequestSyncInternvalId = setInterval(() => {
+                    fetch(`/api/v1/wallet/{{wallet_id}}/request_sync`, {
+                        method: 'POST'
+                    }).then((response) => {
+                        if (response.status != 200) {
+                            throw "Request for syncing wallet fails"
+                        }
+                    }).catch(errorMessage => {
+                        console.log(errorMessage);
+                    });
+                }, 5 * 1000);
+            }
+        }
+        function removeRequestSync() {
+            clearInterval(gRequestSyncInternvalId);
+            gRequestSyncInternvalId = 0;
+        }
+
+        // doc: https://developer.mozilla.org/en-US/docs/Web/API/Document/visibilityState
+        document.addEventListener("visibilitychange", function () {
+            if (document.visibilityState === "visible") {
+                setupRequestSync();
+            } else if (document.visibilityState === "hidden") {
+                removeRequestSync();
+            } else {
+                console.log("Unhandled visibilityState: " + document.visibilityState  );
+            }
+        });
+
+        document.addEventListener("DOMContentLoaded", () => {
+            let error = document.querySelector("#error");
+            let success = document.querySelector("#success");
+            setupRequestSync();
+        });
+    </script>
 </head>
 
 <body>

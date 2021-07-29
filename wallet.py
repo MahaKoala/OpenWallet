@@ -96,11 +96,9 @@ class Wallet:
         self.new_addresses = list(filter(
             lambda addr: addr not in self.receive_addresses, self.new_addresses))
     
-    def maybe_sync(self):
-        """
-        sync if now - last sync is greater than some threshold.
-        """
-        threshold = 50
+    def request_sync(self):
+        # sync is honored if last time sync is more than 30 seconds ago.
+        threshold = 30
         if time.time() - self.last_sync > threshold:
             self.sync()
             self.last_sync = time.time()
