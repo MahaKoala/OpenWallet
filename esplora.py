@@ -5,10 +5,15 @@ from bitcoin.core import CScript, CTxOut
 from config import Config, NETWORK_MAINNET
 import binascii
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Set, Dict
+import time
 
 ENDPOINT_TESTNET = Config.TestNetExploraEndpoint
 ENDPOINT_MAINNET = Config.EsploraEndpoint
+
+gThreadPoolExecutor: ThreadPoolExecutor = ThreadPoolExecutor(
+    Config.ThreadPoolMaxWorkers)
 
 def getendpoint():
     return ENDPOINT_MAINNET if Config.Network == NETWORK_MAINNET else ENDPOINT_TESTNET
@@ -23,14 +28,17 @@ def http_get(url, retry_on_5xx=True) -> Response:
       response = requests.get(url)
    return response
 
-# Returns true if the address exists on the blockchain.
+gExistedAddresses = set()
 def existaddress(bitcoinaddr: CBitcoinAddress) -> bool:
+    if str(bitcoinaddr) in gExistedAddresses:
+        return True
     response = http_get(
         "%saddress/%s" % (getendpoint(), str(bitcoinaddr)))
     assert response.status_code == 200, ("HTTP Error: %s" % (response.text,))
 
     json = response.json()
     if json["chain_stats"]["tx_count"] != 0:
+        gExistedAddresses.add(str(bitcoinaddr))
         return True
 
     return False
@@ -50,6 +58,15 @@ def address(address: CBitcoinAddress) -> AddressResponse:
     response = AddressResponse(balance)
     return response
 
+def addresses(addresses: [CBitcoinAddress]) -> List[AddressResponse]:
+    future_addresses = [gThreadPoolExecutor.submit(
+        address, addr) for addr in addresses]
+    address_responses = []
+    start_time = time.time()
+    for future_address in as_completed(future_addresses):
+        address_responses.append(future_address.result())
+    logging.debug("Took %d ms to complete addresses" % ((time.time() - start_time)*1000, ))
+    return address_responses
 
 class UnspentOutput:
     def __init__(self, txid, vout, value):

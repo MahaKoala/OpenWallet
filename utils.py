@@ -24,7 +24,7 @@ class AddressView():
         self.formatted_value = '{:,}'.format(value)
 
 class WalletView():
-    def __init__(self, wallet_id, network, label):
+    def __init__(self, wallet_id: int, network, label):
         self.wallet_id = wallet_id
         self.network = network
         self.label = label
@@ -59,7 +59,6 @@ def viewwallet(wallet_id: int) -> WalletView:
     # Return the wallet from the cache if found.
     if wallet_id in gWalletMap.keys():
         wallet = gWalletMap[wallet_id][1]
-        wallet.sync()
 
         wallet_view = gWalletMap[wallet_id][0]
         wallet_view._loadwallet(wallet)
@@ -80,6 +79,11 @@ def viewwallet(wallet_id: int) -> WalletView:
         wallet_view._loadwallet(wallet)
         gWalletMap[wallet_id] = (wallet_view, wallet)
         return wallet_view
+
+def request_sync(wallet_id: int):
+    assert wallet_id in gWalletMap.keys()
+    wallet = gWalletMap[wallet_id][1]
+    wallet.request_sync()
 
 '''
 return None if nemonic is valid, otherwise error message.

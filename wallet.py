@@ -8,7 +8,7 @@ from bip32 import BIP32, HARDENED_INDEX
 import hashlib
 import logging
 import discovery
-import datetime
+import time
 from config import Config
 
 '''
@@ -67,6 +67,8 @@ class Wallet:
         self.receive_addresses: List[Address] = []
         self.change_addresses: List[Address] = []
 
+        self.last_sync = time.time()
+
     def new_address(self) -> CBitcoinAddress:
         # Find the last used index of account 0.
         last_used_index = -1
@@ -94,6 +96,13 @@ class Wallet:
         # remove new addresses that has received some bitcoin.
         self.new_addresses = list(filter(
             lambda addr: addr not in self.receive_addresses, self.new_addresses))
+    
+    def request_sync(self):
+        # sync is honored if last time sync is more than 30 seconds ago.
+        threshold = 30
+        if time.time() - self.last_sync > threshold:
+            self.sync()
+            self.last_sync = time.time()
 
     def send(target: CBitcoinAddress):
         pass

@@ -89,3 +89,9 @@ def api_newaddress(wallet_id):
     #     return jsonify({
     #         'error': "Something went wrong."
     #     }), 400
+
+@app.route('/api/v1/wallet/<wallet_id>/request_sync', methods=['POST'])
+def api_request_sync_wallet(wallet_id):
+    utils.request_sync(int(wallet_id))
+    return  jsonify({}), 200
+   

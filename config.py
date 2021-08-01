@@ -21,3 +21,5 @@ class Config():
 
     # Same as "EsploraEndpoint", except it is for testnet.
     TestNetExploraEndpoint = "https://blockstream.info/testnet/api/"
+
+    ThreadPoolMaxWorkers = 10
