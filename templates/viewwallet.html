@@ -48,7 +48,29 @@
             let error = document.querySelector("#error");
             let success = document.querySelector("#success");
             setupRequestSync();
+
+            // 0-balance address button
+            const url = new URL(window.location);
+            let showZeroBalance = document.querySelector("#show-zero-balance");
+            if (url.searchParams.get("show_zero_balance") === "1") {
+                showZeroBalance.innerHTML = "Hide 0-balance Addresses"
+                showZeroBalance.addEventListener("click", () => {
+                    let search_params = new URLSearchParams(url.search);
+                    search_params.set("show_zero_balance", "0")
+                    url.search = search_params.toString();
+                    window.location = url.toString()
+                });
+            } else {
+                showZeroBalance.innerHTML = "Show 0-balance Addresses"
+                showZeroBalance.addEventListener("click", () => {
+                    let search_params = new URLSearchParams(url.search);
+                    search_params.set("show_zero_balance", "1")
+                    url.search = search_params.toString();
+                    window.location = url.toString()
+                });
+            }
         });
+
     </script>
 </head>
 
@@ -57,17 +79,25 @@
     <h2>Wallet Overview</h2>
     <p>Wallet ID: {{wallet.wallet_id}}</p>
     <p>Wallet Label: {{wallet.label}}</p>
-    <p>Balance: {{wallet.balance}}</p>
+    <p>Balance: {{wallet.formatted_balance}}</p>
+    <p><button id="show-zero-balance"></button></p>
 
-    <h2>addresses (address, balance, ischange)</h2>
-    <ol>
-    {% for address in wallet.addresses: %}
-        <li>
-            <a href="{{g_explorer}}/address/{{address.bitcoin_address}}" target="_blank">{{address.bitcoin_address}}</a>, 
-            {{address.value}},
-            {{address.is_change}}
-        </li>
-    {% endfor %}    
+    <table>
+        <tr>
+            <th>Address</th>
+            <th>Balance</th>
+            <th>IsChange?</th>
+        </tr>
+    
+        {% for address in wallet.addresses: %}
+        <tr>
+            <td><a href="{{g_explorer}}/address/{{address.bitcoin_address}}" target="_blank">{{address.bitcoin_address}}</a></td>
+            <td>{{address.formatted_value}}</td>
+            <td>{{address.is_change}}</td>
+        </tr>
+        {% endfor %}
+
+    </table>
 </body>
 
 </html>
