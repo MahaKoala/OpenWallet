@@ -2,3 +2,8 @@ a {color: #0077cc;}         /* Unvisited link  */
 a:visited {color: #0077cc;} /* Visited link    */
 a:hover {color: #0077cc;}   /* Mouse over link */
 a:active {color: #0077cc;}  /* Selected link   */
+
+table {
+  border-collapse: separate;
+  border-spacing: 10px 5px;
+}

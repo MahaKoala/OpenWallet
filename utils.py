@@ -18,7 +18,10 @@ class AddressView():
         self.bitcoin_address = bitcoin_address
         self.value = value
         self.is_change = is_change
-        pass
+        # https://docs.python.org/3/library/string.html#format-specification-mini-language
+        # The ',' option signals the use of a comma for a thousands separator. For a locale aware separator,
+        # use the 'n' integer presentation type instead.
+        self.formatted_value = '{:,}'.format(value)
 
 class WalletView():
     def __init__(self, wallet_id, network, label):
@@ -28,6 +31,7 @@ class WalletView():
 
     def _loadwallet(self, wallet: Wallet):
         self.balance = wallet.balance
+        self.formatted_balance = '{:,}'.format(wallet.balance)
 
         self.addresses: List[AddressView] = []
         for addr in wallet.receive_addresses + wallet.change_addresses + wallet.new_addresses:

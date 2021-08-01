@@ -8,13 +8,23 @@
 
   <body>
     <h2>Network Type: {{g_network_type}}</h2>
-    <p>id, network, label</p>
-    {% for wallet in wallets: %}
-    <p>
-      {{wallet.wallet_id}}, {{wallet.network}}, {{wallet.label}}, 
-      <a href="/viewwallet/{{wallet.wallet_id}}">Open</a>
-    </p>
-    {% endfor %}
+    <table>
+      <tr>
+        <th>ID</th>
+        <th>Network</th>
+        <th>Label</th>
+        <th>Action</th>
+      </tr>
+
+      {% for wallet in wallets: %}
+      <tr>
+        <td>{{wallet.wallet_id}}</td>
+        <td>{{wallet.network}}</td>
+        <td>{{wallet.label}}</td>
+        <td><a href="/viewwallet/{{wallet.wallet_id}}">Open</a></td>
+      </tr>
+      {% endfor %}
+    </table>
     
     <a href="/addwallet">Add Wallet</a>
   </body>

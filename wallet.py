@@ -76,6 +76,7 @@ class Wallet:
         
         next_index = last_used_index + 1
 
+        logging.debug("next index of the new address is " + str(next_index))
         pubkey: bytes = self._bip84_path.derive_pubkey(0, 0, next_index)
         p2wpkh = bitcoin.core.CScript([OP_0, Hash160(pubkey)])
         p2wpkh_addr = P2WPKHBitcoinAddress.from_scriptPubKey(p2wpkh)

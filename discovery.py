@@ -27,7 +27,7 @@ def bip84_discover_addresses(seed: bytes, num_of_accounts: int, is_change: bool,
             p2wpkh_addr = P2WPKHBitcoinAddress.from_scriptPubKey(p2wpkh)
             if esplora.existaddress(p2wpkh_addr):
                 stop_at = index + gap_limit + 1
-            addrs.append(Address(is_change, index, account_i, p2wpkh_addr, 0))
+                addrs.append(Address(is_change, index, account_i, p2wpkh_addr, 0))
             index += 1
 
     return addrs
