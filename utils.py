@@ -29,14 +29,18 @@ class WalletView():
         self.network = network
         self.label = label
 
-    def _loadwallet(self, wallet: Wallet):
+    def _loadwallet(self, wallet: Wallet, show_zero_balance: int = 0):
         self.balance = wallet.balance
         self.formatted_balance = '{:,}'.format(wallet.balance)
 
         self.addresses: List[AddressView] = []
         for addr in wallet.receive_addresses + wallet.change_addresses + wallet.new_addresses:
-            self.addresses.append(AddressView(
-                str(addr.address), addr.balance, addr.is_change))
+            if addr.balance != 0:
+                self.addresses.append(AddressView(
+                    str(addr.address), addr.balance, addr.is_change))
+            elif show_zero_balance == 1:
+                self.addresses.append(AddressView(
+                    str(addr.address), addr.balance, addr.is_change))
     
 gWalletMap: Dict[int, Tuple[WalletView, Wallet]]={}
 
@@ -55,13 +59,14 @@ def newaddress(wallet_id: int) -> str:
     new_address = wallet.new_address()
     return str(new_address)
 
-def viewwallet(wallet_id: int) -> WalletView:
+
+def viewwallet(wallet_id: int, show_zero_balance) -> WalletView:
     # Return the wallet from the cache if found.
     if wallet_id in gWalletMap.keys():
         wallet = gWalletMap[wallet_id][1]
 
         wallet_view = gWalletMap[wallet_id][0]
-        wallet_view._loadwallet(wallet)
+        wallet_view._loadwallet(wallet, show_zero_balance)
         return wallet_view
 
     # Load from the database
@@ -76,7 +81,7 @@ def viewwallet(wallet_id: int) -> WalletView:
         wallet = Wallet(seed)
         wallet.sync()
         wallet_view = WalletView(wallet_id, network, label)
-        wallet_view._loadwallet(wallet)
+        wallet_view._loadwallet(wallet, show_zero_balance)
         gWalletMap[wallet_id] = (wallet_view, wallet)
         return wallet_view
 

@@ -45,7 +45,9 @@ def addwallet():
 
 @app.route('/viewwallet/<wallet_id>')
 def viewwallet(wallet_id):
-    wallet: WalletView = utils.viewwallet(int(wallet_id))
+    show_zero_balance = request.args.get(
+        'show_zero_balance', default=0, type=int)
+    wallet: WalletView = utils.viewwallet(int(wallet_id), show_zero_balance)
     return render_template('viewwallet.html', wallet=wallet, wallet_id=wallet_id)
 
 @app.route('/viewwallet/<wallet_id>/receive')
