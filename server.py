@@ -94,4 +94,21 @@ def api_newaddress(wallet_id):
 def api_request_sync_wallet(wallet_id):
     utils.request_sync(int(wallet_id))
     return  jsonify({}), 200
-   
+
+@app.route('/api/v1/wallet/<wallet_id>/send', method=['POST'])
+def api_send(wallet_id):
+    req = json.loads(request.data)
+    if not utils.valid_bitcoin_address(req["bitcoin_address"]):
+        return jsonify({
+            'error': 'Invalid Bitcoin address',
+            'detail': ""
+        }), 400
+
+    if int(req["amount"]) <= 0:
+        return jsonify({
+            'error': 'Amount must be greater than 0',
+            'detail': ""
+        }), 400
+    
+    utils.send(req["bitcoin_address"], int(req["amount"]))
+
