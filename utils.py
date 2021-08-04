@@ -5,7 +5,7 @@ import bitcoin
 import logging
 import os
 import discovery
-from wallet import Wallet
+from wallet import Wallet, UnspentOutput
 from config import Config
 
 SQLITE_DB_FILE = os.path.dirname(
@@ -14,14 +14,27 @@ SQLITE_DB_FILE = os.path.dirname(
 EnglishMnemonic = Mnemonic("english")
 
 class AddressView():
-    def __init__(self, bitcoin_address: str, value: int, is_change: bool):
+    def __init__(self, bitcoin_address: str, value: int, is_change: bool, derivation_path: str):
         self.bitcoin_address = bitcoin_address
+        self.omitted_bitcoin_address = bitcoin_address[0:4] + \
+            "..." + bitcoin_address[-4:]
         self.value = value
         self.is_change = is_change
         # https://docs.python.org/3/library/string.html#format-specification-mini-language
         # The ',' option signals the use of a comma for a thousands separator. For a locale aware separator,
         # use the 'n' integer presentation type instead.
         self.formatted_value = '{:,}'.format(value)
+        self.derivation_path = derivation_path
+
+class UnspentOutputView():
+    def __init__(self, unspent_output: UnspentOutput):
+        self.bitcoin_address = str(unspent_output.address)
+        self.omitted_bitcoin_address = self.bitcoin_address[0:4] + \
+            "..." + self.bitcoin_address[-4:]
+        self.value = '{:,}'.format(unspent_output.value)
+        self.vout = unspent_output.vout
+        self.txid = unspent_output.txid
+        self.omitted_txid = self.txid[0:3] + "..." + self.txid[-4:]
 
 class WalletView():
     def __init__(self, wallet_id: int, network, label):
@@ -34,13 +47,20 @@ class WalletView():
         self.formatted_balance = '{:,}'.format(wallet.balance)
 
         self.addresses: List[AddressView] = []
+        
         for addr in wallet.receive_addresses + wallet.change_addresses + wallet.new_addresses:
+            derivation_path = wallet.path_prefix + \
+                "/{}/{}".format(1 if addr.is_change else 0, addr.address_index)
             if addr.balance != 0:
                 self.addresses.append(AddressView(
-                    str(addr.address), addr.balance, addr.is_change))
+                    str(addr.address), addr.balance, addr.is_change, derivation_path))
             elif show_zero_balance == 1:
                 self.addresses.append(AddressView(
-                    str(addr.address), addr.balance, addr.is_change))
+                    str(addr.address), addr.balance, addr.is_change, derivation_path))
+
+        self.unspent_outputs = []
+        for unspent_output in wallet.unspent_outputs:
+            self.unspent_outputs.append(UnspentOutputView(unspent_output))     
     
 gWalletMap: Dict[int, Tuple[WalletView, Wallet]]={}
 

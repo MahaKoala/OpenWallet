@@ -9,6 +9,7 @@ import hashlib
 import logging
 import discovery
 import time
+import esplora
 from config import Config
 
 '''
@@ -23,7 +24,6 @@ def bip32_derive_pubkey(seed: bytes, path: str) -> bytes:
    bip32 = BIP32.from_seed(seed)
    return bip32.get_pubkey_from_path(path)
 
-
 class Address:
     def __init__(self, is_change, address_index, account_no, address, balance):
         self.is_change = is_change
@@ -33,12 +33,11 @@ class Address:
         self.balance = balance
 
 class UnspentOutput:
-    '''
-    @amount in satoshi
-    '''
-    def __init__(self, outpoint: COutPoint, amount: int):
-        pass
-
+    def __init__(self, txid, vout, value, address):
+        self.txid = txid
+        self.vout = vout
+        self.value = value
+        self.address: CBitcoinAddress = address
 
 class Bip44Path:
     # m / purpose' / coin_type' / account' / change / address_index
@@ -54,12 +53,12 @@ class Bip44Path:
         pubkey: bytes = bip32_derive_pubkey(self._seed, path)
         return pubkey
 
-
 class Wallet:
     def __init__(self, seed):
         '''
         Is Bitcoin Bech 32 P2WPKH wallet 
         '''
+        self.path_prefix = "m/84'/0'"
         self._bip84_path = Bip44Path(seed, 84, 0)
         self._seed = seed
         self.balance = 0
@@ -96,6 +95,18 @@ class Wallet:
         # remove new addresses that has received some bitcoin.
         self.new_addresses = list(filter(
             lambda addr: addr not in self.receive_addresses, self.new_addresses))
+
+        # Search for UTXOs.
+        total_spendable_addresses: List[CBitcoinAddress] = []
+        for address in self.receive_addresses + self.change_addresses:
+            total_spendable_addresses.append(address.address)
+        utxos: Dict[str, Set[UnspentOutput]] = esplora.utxos(
+            total_spendable_addresses)
+
+        self.unspent_outputs = []
+        for unspent_output_set in utxos.values():
+            for unspent_output in unspent_output_set:
+                self.unspent_outputs.append(unspent_output)
     
     def request_sync(self):
         # sync is honored if last time sync is more than 30 seconds ago.

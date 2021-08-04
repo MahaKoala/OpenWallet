@@ -75,7 +75,7 @@
 </head>
 
 <body>
-    <h2 id="narbar"><a href="/">Home</a> <a href="/send">Send</a> <a href="/viewwallet/{{wallet_id}}/receive">Receive</a></h2>
+    <h2 id="narbar"><a href="/">Home</a> <a href="/viewwallet/{{wallet_id}}/send">Send</a> <a href="/viewwallet/{{wallet_id}}/receive">Receive</a></h2>
     <h2>Wallet Overview</h2>
     <p>Wallet ID: {{wallet.wallet_id}}</p>
     <p>Wallet Label: {{wallet.label}}</p>
@@ -86,14 +86,14 @@
         <tr>
             <th>Address</th>
             <th>Balance</th>
-            <th>IsChange?</th>
+            <th>Derivation Path</th>
         </tr>
     
         {% for address in wallet.addresses: %}
         <tr>
-            <td><a href="{{g_explorer}}/address/{{address.bitcoin_address}}" target="_blank">{{address.bitcoin_address}}</a></td>
+            <td><a href="{{g_explorer}}/address/{{address.bitcoin_address}}" target="_blank">{{address.omitted_bitcoin_address}}</a></td>
             <td>{{address.formatted_value}}</td>
-            <td>{{address.is_change}}</td>
+            <td>{{address.derivation_path}}</td>
         </tr>
         {% endfor %}
 

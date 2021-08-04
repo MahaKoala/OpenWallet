@@ -4,6 +4,7 @@ from bitcoin.wallet import CBitcoinAddress
 from bitcoin.core import CScript, CTxOut
 from config import Config, NETWORK_MAINNET
 import binascii
+from wallet import UnspentOutput
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Set, Dict
@@ -68,12 +69,6 @@ def addresses(addresses: [CBitcoinAddress]) -> List[AddressResponse]:
     logging.debug("Took %d ms to complete addresses" % ((time.time() - start_time)*1000, ))
     return address_responses
 
-class UnspentOutput:
-    def __init__(self, txid, vout, value):
-        self.txid = txid
-        self.vout = vout
-        self.value = value
-
 '''
 Retrives the set of utxo
 '''
@@ -86,8 +81,23 @@ def utxo(address: CBitcoinAddress) -> Set[UnspentOutput]:
     utxos = set()
     for elm in json:
         if elm["status"]["confirmed"]:
-            utxos.add(UnspentOutput(elm["txid"], elm["vout"], elm["value"]))
+            utxos.add(UnspentOutput(
+                elm["txid"], elm["vout"], elm["value"], address))
     return utxos
+
+
+def utxos(addresses: List[CBitcoinAddress]) -> Dict[str, Set[UnspentOutput]]:
+    future_utxos = [gThreadPoolExecutor.submit(
+        utxo, addr) for addr in addresses]
+    utxos_response = {}
+    start_time = time.time()
+    index = 0
+    for future_utxo in as_completed(future_utxos):
+        address = addresses[index]
+        utxos_response[str(address)] = future_utxo.result()
+        index += 1
+    logging.debug("Took %d ms to complete utxos" % ((time.time() - start_time)*1000, ))
+    return utxos_response
 
 def txout(utxo: UnspentOutput) -> CTxOut:
     tx_url = "{endpoint}tx/{txid}"

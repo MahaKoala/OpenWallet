@@ -1,0 +1,83 @@
+<html>
+
+<head>
+    <title>
+        Send {{g_network_type}}
+    </title>
+    <link rel="stylesheet" href="/css/reset.css" />
+    <style>
+        #narbar a {
+            margin-right: 20px;
+        }
+    </style>
+
+    <script>
+        // // doc: https://developer.mozilla.org/en-US/docs/Web/API/Document/visibilityState
+        // document.addEventListener("visibilitychange", function () {
+        //     if (document.visibilityState === "visible") {
+        //         setupRequestSync();
+        //     } else if (document.visibilityState === "hidden") {
+        //         removeRequestSync();
+        //     } else {
+        //         console.log("Unhandled visibilityState: " + document.visibilityState);
+        //     }
+        // });
+
+        // document.addEventListener("DOMContentLoaded", () => {
+        //     let error = document.querySelector("#error");
+        //     let success = document.querySelector("#success");
+        //     setupRequestSync();
+
+        //     // 0-balance address button
+        //     const url = new URL(window.location);
+        //     let showZeroBalance = document.querySelector("#show-zero-balance");
+        //     if (url.searchParams.get("show_zero_balance") === "1") {
+        //         showZeroBalance.innerHTML = "Hide 0-balance Addresses"
+        //         showZeroBalance.addEventListener("click", () => {
+        //             let search_params = new URLSearchParams(url.search);
+        //             search_params.set("show_zero_balance", "0")
+        //             url.search = search_params.toString();
+        //             window.location = url.toString()
+        //         });
+        //     } else {
+        //         showZeroBalance.innerHTML = "Show 0-balance Addresses"
+        //         showZeroBalance.addEventListener("click", () => {
+        //             let search_params = new URLSearchParams(url.search);
+        //             search_params.set("show_zero_balance", "1")
+        //             url.search = search_params.toString();
+        //             window.location = url.toString()
+        //         });
+        //     }
+        // });
+
+    </script>
+</head>
+
+<body>
+    <h2 id="narbar"><a href="/viewwallet/{{wallet_id}}">Wallet</a></h2>
+    <h2>Send</h2>
+    <p>Wallet ID: {{wallet.wallet_id}}</p>
+    <p>Wallet Label: {{wallet.label}}</p>
+    <p>Balance: {{wallet.formatted_balance}}</p>
+
+    <table>
+        <tr>
+            <th>Address</th>
+            <th>Transaction ID</th>
+            <th>Vout</th>
+            <th>Value</th>
+        </tr>
+
+        {% for unspent_output in wallet.unspent_outputs: %}
+        <tr>
+            <td><a href="{{g_explorer}}/address/{{unspent_output.bitcoin_address}}" target="_blank">{{unspent_output.omitted_bitcoin_address}}</a></td>
+            <td><a href="{{g_explorer}}/tx/{{unspent_output.txid}}" target="_blank">{{unspent_output.omitted_txid}}</a></td>
+            <td>{{unspent_output.vout}}</td>
+            <td>{{unspent_output.value}}</td>
+        </tr>
+        {% endfor %}
+
+    </table>
+</body>
+
+</html>

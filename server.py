@@ -54,6 +54,11 @@ def viewwallet(wallet_id):
 def receive(wallet_id):
     return render_template('receive.html', wallet_id=wallet_id)
 
+@app.route('/viewwallet/<wallet_id>/send')
+def send(wallet_id):
+    wallet: WalletView = utils.viewwallet(int(wallet_id), 0)
+    return render_template('send.html', wallet_id=wallet_id, wallet=wallet)
+
 @app.route('/')
 def index():
     wallets = loadwallets()
@@ -97,20 +102,20 @@ def api_request_sync_wallet(wallet_id):
     utils.request_sync(int(wallet_id))
     return  jsonify({}), 200
 
-@app.route('/api/v1/wallet/<wallet_id>/send', method=['POST'])
-def api_send(wallet_id):
-    req = json.loads(request.data)
-    if not utils.valid_bitcoin_address(req["bitcoin_address"]):
-        return jsonify({
-            'error': 'Invalid Bitcoin address',
-            'detail': ""
-        }), 400
+# @app.route('/api/v1/wallet/<wallet_id>/send', method=['POST'])
+# def api_send(wallet_id):
+#     req = json.loads(request.data)
+#     if not utils.valid_bitcoin_address(req["bitcoin_address"]):
+#         return jsonify({
+#             'error': 'Invalid Bitcoin address',
+#             'detail': ""
+#         }), 400
 
-    if int(req["amount"]) <= 0:
-        return jsonify({
-            'error': 'Amount must be greater than 0',
-            'detail': ""
-        }), 400
+#     if int(req["amount"]) <= 0:
+#         return jsonify({
+#             'error': 'Amount must be greater than 0',
+#             'detail': ""
+#         }), 400
     
-    utils.send(req["bitcoin_address"], int(req["amount"]))
+#     utils.send(req["bitcoin_address"], int(req["amount"]))
 
