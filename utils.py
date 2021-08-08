@@ -129,3 +129,11 @@ def loadwallets() -> List[WalletView]:
                 wallets.append(WalletView(wallet_id, network, label))
     return wallets
 
+def send(wallet_id: int, value: int, utxos: List[Tuple[str, int]], destination: str) -> str:
+    unspent_outputs = [UnspentOutput(
+        utxo[0], utxo[1], None, None) for utxo in utxos]
+    bitcoin_address = bitcoin.wallet.CBitcoinAddress(destination)
+
+    assert wallet_id in gWalletMap, "Wallet not found."
+    wallet: Wallet = gWalletMap[wallet_id][1]
+    return wallet.send(value, unspent_outputs, bitcoin_address)

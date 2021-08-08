@@ -9,6 +9,7 @@ from config import Config, NETWORK_MAINNET, NETWORK_TESTNET
 import logging
 import bitcoin
 import os
+import binascii
 
 app = Flask(__name__)
 if app.env == 'development':
@@ -91,31 +92,20 @@ def api_newaddress(wallet_id):
     return jsonify({
         'newaddress': newaddress
     }), 200
-    # except Exception as e:
-    #     logging.debug(str(e))
-    #     return jsonify({
-    #         'error': "Something went wrong."
-    #     }), 400
 
 @app.route('/api/v1/wallet/<wallet_id>/request_sync', methods=['POST'])
 def api_request_sync_wallet(wallet_id):
     utils.request_sync(int(wallet_id))
     return  jsonify({}), 200
 
-# @app.route('/api/v1/wallet/<wallet_id>/send', method=['POST'])
-# def api_send(wallet_id):
-#     req = json.loads(request.data)
-#     if not utils.valid_bitcoin_address(req["bitcoin_address"]):
-#         return jsonify({
-#             'error': 'Invalid Bitcoin address',
-#             'detail': ""
-#         }), 400
+@app.route('/api/v1/wallet/<wallet_id>/send', methods=['POST'])
+def api_send(wallet_id):
+    req = json.loads(request.data)
+    value = int(req["value"])
+    utxos: List[Tuple[str, int]] = []
+    for utxo in req["utxos"]:
+        utxos.append((utxo["txid"], int(utxo["vout"])))
 
-#     if int(req["amount"]) <= 0:
-#         return jsonify({
-#             'error': 'Amount must be greater than 0',
-#             'detail': ""
-#         }), 400
-    
-#     utils.send(req["bitcoin_address"], int(req["amount"]))
+    txid = utils.send(int(wallet_id), value, utxos, req["destination"])
+    return jsonify({}), 200
 

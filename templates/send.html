@@ -5,6 +5,7 @@
         Send {{g_network_type}}
     </title>
     <link rel="stylesheet" href="/css/reset.css" />
+    <link rel="stylesheet" href="/css/common.css" />
     <style>
         #narbar a {
             margin-right: 20px;
@@ -12,6 +13,81 @@
     </style>
 
     <script>
+
+        document.addEventListener("DOMContentLoaded", () => {
+            window.gUtxos = {}
+            window.gTotalUtxosValue = 0
+            // < input id = "amountInput" type = "text" /> <button id="sendBtn">Send</button>
+
+            const showError= document.querySelector("#error");
+            const showSuccess = document.querySelector("#success");
+            const amountInput = document.querySelector("#amountInput");
+            const destinationInput = document.querySelector("#destinationInput");
+            const sendBtn = document.querySelector("#sendBtn");
+
+            sendBtn.addEventListener("click", () => {
+                showError.innerHTML = "";
+                showSuccess.innerHTML = "";
+                if (amountInput.value === "") {
+                    showError.innerHTML = "Please specify amount that you want to send.";
+                    return;
+                }
+
+                if (isNaN(amountInput.value)) {
+                    showError.innerHTML = "Invalid value to send.";
+                    return;
+                }
+
+                const valueSend = parseInt(amountInput.value)
+                if (gTotalUtxosValue < valueSend) {
+                    showError.innerHTML = "Insufficient fund to send.";
+                    return;
+                }
+
+                if (destinationInput.value === "") {
+                    showError.innerHTML = "Must specify Destination.";
+                    return;
+                }
+
+                const sendRequest = {
+                    utxos: Object.values(gUtxos),
+                    value: valueSend,
+                    destination: destinationInput.value
+                }
+                fetch("/api/v1/wallet/{{wallet_id}}/send", {
+                    method: 'POST',
+                    body: JSON.stringify(sendRequest)
+                }).then((response) => {
+                    return response.json();
+                }).then(payload => {
+                    if (payload["error"]) {
+                        throw payload["error"]
+                    }
+                    showSuccess.innerHTML = "Sent"
+                    sendBtn.classList.add("hide")
+                }).catch(errorMessage => {
+                    error.innerHTML = errorMessage;
+                });
+            })
+
+            const utxoSelectors = document.querySelectorAll(".utxoSelector");
+            utxoSelectors.forEach((utxoSelector) => {
+                utxoSelector.addEventListener('change', function () {
+                    const txid = utxoSelector.dataset.txid;
+                    const vout = utxoSelector.dataset.vout;
+                    const value = utxoSelector.dataset.value;
+                    if (this.checked) {
+                        gUtxos[txid + ":" + vout] = { txid, vout, value }
+                        gTotalUtxosValue += value;
+                    } else {
+                        delete gUtxos[txid + ":" + vout];
+                        gTotalUtxosValue -= value;
+                    }
+                })
+            })
+
+        });
+
         // // doc: https://developer.mozilla.org/en-US/docs/Web/API/Document/visibilityState
         // document.addEventListener("visibilitychange", function () {
         //     if (document.visibilityState === "visible") {
@@ -60,12 +136,19 @@
     <p>Wallet Label: {{wallet.label}}</p>
     <p>Balance: {{wallet.formatted_balance}}</p>
 
+    <p><label> Amount: <input id="amountInput" type="text" /> </label></p>
+    <p><label> Destination: <input id="destinationInput" type="text" size="50"/></label></p>
+    <button id="sendBtn">Send</button>
+
+    <h4 id="error" style="color:firebrick"></h4>
+    <h4 id="success" style="color:green"></h4>
     <table>
         <tr>
             <th>Address</th>
             <th>Transaction ID</th>
             <th>Vout</th>
             <th>Value</th>
+            <th></th>
         </tr>
 
         {% for unspent_output in wallet.unspent_outputs: %}
@@ -74,6 +157,7 @@
             <td><a href="{{g_explorer}}/tx/{{unspent_output.txid}}" target="_blank">{{unspent_output.omitted_txid}}</a></td>
             <td>{{unspent_output.vout}}</td>
             <td>{{unspent_output.value}}</td>
+            <td><input class="utxoSelector" type="checkbox" data-txid="{{unspent_output.txid}}" data-vout="{{unspent_output.vout}}" data-value="{{unspent_output.value}}" ></td>
         </tr>
         {% endfor %}
 

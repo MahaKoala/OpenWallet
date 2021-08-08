@@ -1,11 +1,12 @@
 from bitcoin.core.serialize import Hash160
-from bitcoin.wallet import CBitcoinAddress, P2PKHBitcoinAddress, P2SHBitcoinAddress, P2WPKHBitcoinAddress
-from bitcoin.core import COutPoint, CTransaction
-from bitcoin.core.script import OP_0, OP_CHECKSIG, OP_DUP, OP_EQUAL, OP_EQUALVERIFY, OP_HASH160
+from bitcoin.wallet import CBitcoinAddress, P2PKHBitcoinAddress, P2SHBitcoinAddress, P2WPKHBitcoinAddress, CKey
+from bitcoin.core import COutPoint, CTransaction, lx, CTxIn, CTxOut, CMutableTransaction, CTxInWitness, CScriptWitness, CTxWitness
+from bitcoin.core.script import OP_0, OP_CHECKSIG, OP_DUP, OP_EQUAL, OP_EQUALVERIFY, OP_HASH160, CScript, SignatureHash, SIGHASH_ALL, SIGVERSION_WITNESS_V0
 from typing import List, Set
 from bitcoin import bitcoin
 from bip32 import BIP32, HARDENED_INDEX
 import hashlib
+import binascii
 import logging
 import discovery
 import time
@@ -24,6 +25,10 @@ def bip32_derive_pubkey(seed: bytes, path: str) -> bytes:
    bip32 = BIP32.from_seed(seed)
    return bip32.get_pubkey_from_path(path)
 
+def bip32_derive_privkey(seed: bytes, path: str) -> bytes:
+    bip32 = BIP32.from_seed(seed)
+    return bip32.get_privkey_from_path(path)
+
 class Address:
     def __init__(self, is_change, address_index, account_no, address, balance):
         self.is_change = is_change
@@ -33,7 +38,7 @@ class Address:
         self.balance = balance
 
 class UnspentOutput:
-    def __init__(self, txid, vout, value, address):
+    def __init__(self, txid: str, vout: int, value, address):
         self.txid = txid
         self.vout = vout
         self.value = value
@@ -52,6 +57,13 @@ class Bip44Path:
             index=address_index)
         pubkey: bytes = bip32_derive_pubkey(self._seed, path)
         return pubkey
+    
+    def derive_private_key(self, account, change: int, address_index) -> bytes:
+        path = "m/{purpose}'/{coin_type}'/{account}'/{change}/{index}".format(
+            purpose=self._purpose, coin_type=self._coin_type, account=account, change=change,
+            index=address_index)
+        privkey: bytes = bip32_derive_privkey(self._seed, path)
+        return privkey
 
 class Wallet:
     def __init__(self, seed):
@@ -64,26 +76,44 @@ class Wallet:
         self.balance = 0
         self.new_addresses: List[Address] = []
         self.receive_addresses: List[Address] = []
+        self.new_change_addresses: List[Address] = []
         self.change_addresses: List[Address] = []
 
         self.last_sync = time.time()
 
-    def new_address(self) -> CBitcoinAddress:
+    def new_address(self, change=False) -> CBitcoinAddress:
+        addresses = self.receive_addresses if not change else self.change_addresses
+        new_addresses = self.new_addresses if not change else self.new_change_addresses
+        change_index = 0 if not change else 1
+
         # Find the last used index of account 0.
         last_used_index = -1
-        for receive_address in self.receive_addresses + self.new_addresses:
-            if receive_address.account_no == 0 and receive_address.address_index > last_used_index:
-                last_used_index = receive_address.address_index
+        for address in addresses + new_addresses:
+            if address.account_no == 0 and address.address_index > last_used_index:
+                last_used_index = address.address_index
         
         next_index = last_used_index + 1
 
         logging.debug("next index of the new address is " + str(next_index))
-        pubkey: bytes = self._bip84_path.derive_pubkey(0, 0, next_index)
+        pubkey: bytes = self._bip84_path.derive_pubkey(0, change_index, next_index)
         p2wpkh = bitcoin.core.CScript([OP_0, Hash160(pubkey)])
         p2wpkh_addr = P2WPKHBitcoinAddress.from_scriptPubKey(p2wpkh)
 
-        self.new_addresses.append(Address(False, next_index, 0, p2wpkh_addr, 0))
+        new_addresses.append(Address(change, next_index, 0, p2wpkh_addr, 0))
         return p2wpkh_addr
+
+    def _find_seckey(self, bitcoin_address: CBitcoinAddress) -> CKey:
+        for address in self.change_addresses + self.receive_addresses:
+            if str(address.address) == str(bitcoin_address):
+                change = 1 if address.is_change else 0
+                privkey: bytes = self._bip84_path.derive_private_key(
+                    address.account_no, change, address.address_index)
+                return CKey(privkey)
+                # privkey_based58 = bitcoin.base58.encode(privkey)
+                # logging.debug("privkey_based58: {} and {}".format(
+                #     type(privkey_based58), privkey_based58))
+                # seckey: CBitcoinSecret = CBitcoinSecret(privkey_based58)
+        return None
 
     def sync(self):
         bip84_wallet = discovery.discover_bip84_wallet(self._seed, Config.GapLimit)
@@ -95,6 +125,8 @@ class Wallet:
         # remove new addresses that has received some bitcoin.
         self.new_addresses = list(filter(
             lambda addr: addr not in self.receive_addresses, self.new_addresses))
+        self.new_change_addresses = list(filter(
+            lambda addr: addr not in self.change_addresses, self.new_change_addresses))
 
         # Search for UTXOs.
         total_spendable_addresses: List[CBitcoinAddress] = []
@@ -114,7 +146,98 @@ class Wallet:
         if time.time() - self.last_sync > threshold:
             self.sync()
             self.last_sync = time.time()
+    
+    def _find_unspent_output(self, txid: str, vout: int) -> UnspentOutput:
+        for utxo in self.unspent_outputs:
+            if utxo.txid == txid and utxo.vout == vout:
+                return utxo
+        return None
 
-    def send(target: CBitcoinAddress):
+    def _signrawtransactionwithkey(self):
+        pass
+    
+    def send(self, value: int, utxos: List[UnspentOutput], destination: CBitcoinAddress, fee=0):
+        available_fund = 0
+        for i in range(len(utxos)):
+            found: UnspentOutput = self._find_unspent_output(
+                utxos[i].txid, utxos[i].vout)
+            assert found is not None
+
+            # copy over fields
+            utxos[i].value = found.value
+            utxos[i].address = found.address
+            available_fund += found.value
+
+        if fee == 0:
+            # TODO how to calculate the fee?
+            # if the inputs exceed the value of the outputs, any difference in value may be claimed as 
+            # a transaction fee by the Bitcoin miner who creates the block containing that transaction.
+            # "fee" is the difference in value.
+            fee = 1000
+
+        assert available_fund >= fee + value, "Insufficient fund for sending"
+        
+        # The code for creating a signed transacation is based off 
+        # https://github.com/petertodd/python-bitcoinlib/blob/python-bitcoinlib-v0.11.0/examples/spend-p2wpkh.py 
+
+        txins = []
+        for utxo in utxos:
+            txin = CTxIn(COutPoint(lx(utxo.txid), utxo.vout))
+            txins.append(txin)
+        
+        # Spend to the destination.
+        txouts = []
+        txouts.append(CTxOut(value, destination.to_scriptPubKey()))
+        if (available_fund - fee - value > 0):
+            # Rest of the fund goes to change address.
+            chnage_address: CBitcoinAddress = self.new_address(change=True)
+            txouts.append(CTxOut(available_fund - fee - value, chnage_address.to_scriptPubKey()))
+                    
+        tx = CMutableTransaction(txins, txouts)
+        
+
+        logging.debug("Unsigned transaction: " + str(binascii.hexlify(tx.serialize())))
+
+        # Signing
+        prev_txouts = esplora.txouts(utxos)
+        witnesses = []
+        for txin_index, txin in enumerate(txins):
+            # Get SignatureHash (Transaction digest) for signing according to https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki#Native_P2WPKH
+            prev_txout: CTxOut = prev_txouts[txin_index]
+            p2wpkh_bitcoin_address: P2WPKHBitcoinAddress = P2WPKHBitcoinAddress.from_scriptPubKey(prev_txout.scriptPubKey)
+            sighash = SignatureHash(p2wpkh_bitcoin_address.to_redeemScript(), tx, txin_index, SIGHASH_ALL,
+                                    amount=prev_txout.nValue, sigversion=SIGVERSION_WITNESS_V0)
+
+            seckey: CKey = self._find_seckey(p2wpkh_bitcoin_address)
+            assert seckey is not None, "Can't find privkey associated with the address"
+            signature = seckey.sign(sighash) + bytes([SIGHASH_ALL])
+            witness = [signature, seckey.pub]
+            witnesses.append(witness)
+
+        # Aggregate all of the witnesses together, and then assign them to the
+        # transaction object.
+        ctxinwitnesses = [CTxInWitness(CScriptWitness(witness)) for witness in witnesses]
+        tx.wit = CTxWitness(ctxinwitnesses)
+
+        logging.debug("Signed transaction: " +
+                      str(binascii.hexlify(tx.serialize())))
+
+        txid = esplora.tx(tx)
+        assert txid != "", "Failed to send tx"
+        return txid
+
+        
+
+        
+
+
+            
+
+
+            
+
+# sighash = SignatureHash(redeem_script, tx, txin_index, SIGHASH_ALL,
+#                         amount=amount, sigversion=SIGVERSION_WITNESS_V0)
+# signature = seckey.sign(sighash) + bytes([SIGHASH_ALL])
         pass
 

@@ -1,7 +1,7 @@
 import requests
 from requests import Response
 from bitcoin.wallet import CBitcoinAddress
-from bitcoin.core import CScript, CTxOut
+from bitcoin.core import CScript, CTxOut, CTransaction
 from config import Config, NETWORK_MAINNET
 import binascii
 from wallet import UnspentOutput
@@ -85,7 +85,6 @@ def utxo(address: CBitcoinAddress) -> Set[UnspentOutput]:
                 elm["txid"], elm["vout"], elm["value"], address))
     return utxos
 
-
 def utxos(addresses: List[CBitcoinAddress]) -> Dict[str, Set[UnspentOutput]]:
     future_utxos = [gThreadPoolExecutor.submit(
         utxo, addr) for addr in addresses]
@@ -101,16 +100,39 @@ def utxos(addresses: List[CBitcoinAddress]) -> Dict[str, Set[UnspentOutput]]:
 
 def txout(utxo: UnspentOutput) -> CTxOut:
     tx_url = "{endpoint}tx/{txid}"
-    tx_response = http_get(tx_url.format(endpoint=getendpoint(), addr=utxo._txid))
-    assert tx_response.status_code == 200, "Failed to get transaction of ID " + utxo._txid
+    tx_response = http_get(tx_url.format(
+        endpoint=getendpoint(), txid=utxo.txid))
+    assert tx_response.status_code == 200, "Failed to get transaction of ID " + utxo.txid
 
     tx_json = tx_response.json()
-    assert len(
-        tx_json["vout"]) <= utxo._vout, "utxo vout is out of the bound (txid=" + utxo._txid + ")"
-    txout_json = tx_json["vout"][utxo._vout]
+    assert utxo.vout < len(tx_json["vout"]), "utxo vout is out of the bound (txid={}, vout={})".format(utxo.txid,  utxo.vout)    
+    txout_json = tx_json["vout"][utxo.vout]
     b = binascii.unhexlify(txout_json["scriptpubkey"])
     scriptpubkey: CScript = CScript(b)
-    return CTxOut(value=txout_json["value"], scriptpubkey=scriptpubkey)
+    return CTxOut(nValue=txout_json["value"], scriptPubKey=scriptpubkey)
+
+def txouts(utxos: List[UnspentOutput]) -> List[CTxOut]:
+    future_txouts = [gThreadPoolExecutor.submit(
+        txout, utxo) for utxo in utxos]
+    txouts = []
+    start_time = time.time()
+    for future_txout in as_completed(future_txouts):
+        txouts.append(future_txout.result())
+    logging.debug("Took %d ms to complete txouts" %
+                  ((time.time() - start_time)*1000, ))
+    return txouts
+
+def tx(tx: CTransaction) -> str:
+    return tx.GetTxid()
+
+    # # POST /tx
+    # tx_url = "{endpoint}tx"
+    # response = requests.post(tx_url, data=tx.serialize())
+    # if response.status_code != 200:
+    #     logging.warn("Send transaction failed: " + response.text())
+    #     return ""
+    # assert response.text() == str(tx.GetTxid())
+    # return tx.GetTxid()
 
 
 # def tx(txid) -> CTransaction:
