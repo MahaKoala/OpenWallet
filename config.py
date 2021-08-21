@@ -1,6 +1,29 @@
+import os
 
 NETWORK_MAINNET = "mainnet"
 NETWORK_TESTNET = "testnet"
+
+class FullNodeConfig:
+    def __init__(self, config_file):
+        """
+        @rpc_user_password: path to a file that store user and password to access the node.
+        """
+        with open(config_file) as f:
+            for line in f:
+                line = line.strip()
+                tokens = line.split("=")
+                assert len(tokens) == 2, "invalid config file: {}".format(config_file)
+
+                if tokens[0] == "host":
+                    self.host = tokens[1]
+                elif tokens[0] == "port":
+                    self.port = tokens[1]
+                elif tokens[0] == "user":
+                    self.user = tokens[1]
+                elif tokens[0] == "password":
+                    self.password = tokens[1]
+                else:
+                    raise "Unrecognized key {}".format(tokens[0])
 
 class Config():
     # Either "testnet" or "mainnet"
@@ -21,5 +44,14 @@ class Config():
 
     # Same as "EsploraEndpoint", except it is for testnet.
     TestNetExploraEndpoint = "https://blockstream.info/testnet/api/"
+
+    FullNodeConfig: FullNodeConfig(os.path.dirname(os.path.abspath(__file__)) + "/.fullnode_connection.conf")
+
+    TestNetFullNodeConfig = FullNodeConfig(
+        os.path.dirname(os.path.abspath(__file__)) +
+                        "/.fullnode_connection.testnet.conf")
+
+    # Can be enabled only if a running Bitcoin Full Node (Bitcoin Core) 
+    EnableSendTx = True
 
     ThreadPoolMaxWorkers = 10

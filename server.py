@@ -57,6 +57,9 @@ def receive(wallet_id):
 
 @app.route('/viewwallet/<wallet_id>/send')
 def send(wallet_id):
+    if not Config.EnableSendTx:
+        return jsonify({"error": "Send not supported. Please check Config"}), 400
+    
     wallet: WalletView = utils.viewwallet(int(wallet_id), 0)
     return render_template('send.html', wallet_id=wallet_id, wallet=wallet)
 
@@ -100,6 +103,9 @@ def api_request_sync_wallet(wallet_id):
 
 @app.route('/api/v1/wallet/<wallet_id>/send', methods=['POST'])
 def api_send(wallet_id):
+    if not Config.EnableSendTx:
+        return jsonify({"error": "Send not supported. Please check Config"}), 400
+
     req = json.loads(request.data)
     value = int(req["value"])
     utxos: List[Tuple[str, int]] = []
@@ -107,5 +113,5 @@ def api_send(wallet_id):
         utxos.append((utxo["txid"], int(utxo["vout"])))
 
     txid = utils.send(int(wallet_id), value, utxos, req["destination"])
-    return jsonify({}), 200
+    return jsonify({"txid": txid}), 200
 

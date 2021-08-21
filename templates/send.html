@@ -63,7 +63,7 @@
                     if (payload["error"]) {
                         throw payload["error"]
                     }
-                    showSuccess.innerHTML = "Sent"
+                    showSuccess.innerHTML = "Sent. TXID is " + payload["txid"]
                     sendBtn.classList.add("hide")
                 }).catch(errorMessage => {
                     error.innerHTML = errorMessage;

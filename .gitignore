@@ -18,3 +18,5 @@ pyvenv.cfg
 
 .DS_Store
 
+.fullnode_connection*\.conf
+

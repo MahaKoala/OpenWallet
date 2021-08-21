@@ -11,6 +11,7 @@ import logging
 import discovery
 import time
 import esplora
+import fullnode
 from config import Config
 
 '''
@@ -173,7 +174,7 @@ class Wallet:
             # if the inputs exceed the value of the outputs, any difference in value may be claimed as 
             # a transaction fee by the Bitcoin miner who creates the block containing that transaction.
             # "fee" is the difference in value.
-            fee = 1000
+            fee = 200
 
         assert available_fund >= fee + value, "Insufficient fund for sending"
         
@@ -222,22 +223,7 @@ class Wallet:
         logging.debug("Signed transaction: " +
                       str(binascii.hexlify(tx.serialize())))
 
-        txid = esplora.tx(tx)
+        txid = fullnode.sendrawtransaction(tx.serialize())
+        logging.debug("TXID: {}".format(txid))
         assert txid != "", "Failed to send tx"
         return txid
-
-        
-
-        
-
-
-            
-
-
-            
-
-# sighash = SignatureHash(redeem_script, tx, txin_index, SIGHASH_ALL,
-#                         amount=amount, sigversion=SIGVERSION_WITNESS_V0)
-# signature = seckey.sign(sighash) + bytes([SIGHASH_ALL])
-        pass
-

@@ -123,17 +123,17 @@ def txouts(utxos: List[UnspentOutput]) -> List[CTxOut]:
     return txouts
 
 def tx(tx: CTransaction) -> str:
-    return tx.GetTxid()
-
-    # # POST /tx
-    # tx_url = "{endpoint}tx"
-    # response = requests.post(tx_url, data=tx.serialize())
-    # if response.status_code != 200:
-    #     logging.warn("Send transaction failed: " + response.text())
-    #     return ""
-    # assert response.text() == str(tx.GetTxid())
     # return tx.GetTxid()
 
+    # POST /tx
+    tx_url = "{endpoint}tx"
+    response = requests.post(tx_url.format(
+        endpoint=getendpoint()), data=str(tx.serialize()))
+    if response.status_code != 200:
+        logging.warn("Send transaction failed: " + response.text)
+        return ""
+    assert response.text() == str(tx.GetTxid())
+    return str(tx.GetTxid())
 
 # def tx(txid) -> CTransaction:
 #     '''
