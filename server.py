@@ -112,6 +112,6 @@ def api_send(wallet_id):
     for utxo in req["utxos"]:
         utxos.append((utxo["txid"], int(utxo["vout"])))
 
-    txid = utils.send(int(wallet_id), value, utxos, req["destination"])
-    return jsonify({"txid": txid}), 200
+    txid, fee = utils.send(int(wallet_id), value, utxos, req["destination"])
+    return jsonify({"txid": txid, "fee": fee}), 200
 

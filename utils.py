@@ -129,7 +129,7 @@ def loadwallets() -> List[WalletView]:
                 wallets.append(WalletView(wallet_id, network, label))
     return wallets
 
-def send(wallet_id: int, value: int, utxos: List[Tuple[str, int]], destination: str) -> str:
+def send(wallet_id: int, value: int, utxos: List[Tuple[str, int]], destination: str) -> Tuple[str, int]:
     unspent_outputs = [UnspentOutput(
         utxo[0], utxo[1], None, None) for utxo in utxos]
     bitcoin_address = bitcoin.wallet.CBitcoinAddress(destination)

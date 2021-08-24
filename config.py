@@ -51,6 +51,10 @@ class Config():
         os.path.dirname(os.path.abspath(__file__)) +
                         "/.fullnode_connection.testnet.conf")
 
+    # Opt-in Full Replace-by-Fee Signaling
+    # Reference: https://github.com/bitcoin/bips/blob/master/bip-0125.mediawiki
+    EnableBip125Rfb = True
+
     # Can be enabled only if a running Bitcoin Full Node (Bitcoin Core) 
     EnableSendTx = True
 

@@ -2,7 +2,7 @@ import requests
 from requests import Response
 from bitcoin.wallet import CBitcoinAddress
 from bitcoin.core import CScript, CTxOut, CTransaction
-from config import Config, NETWORK_MAINNET
+from config import Config, NETWORK_MAINNET, NETWORK_TESTNET
 import binascii
 from wallet import UnspentOutput
 import logging
@@ -123,8 +123,6 @@ def txouts(utxos: List[UnspentOutput]) -> List[CTxOut]:
     return txouts
 
 def tx(tx: CTransaction) -> str:
-    # return tx.GetTxid()
-
     # POST /tx
     tx_url = "{endpoint}tx"
     response = requests.post(tx_url.format(
@@ -134,6 +132,17 @@ def tx(tx: CTransaction) -> str:
         return ""
     assert response.text() == str(tx.GetTxid())
     return str(tx.GetTxid())
+
+def fee_estimates(confirmation_target=1):
+    """
+    Get an object where the key is the confirmation target (in number of blocks) and the value is the estimated feerate (in sat/vB).
+    The available confirmation targets are 1-25, 144, 504 and 1008 blocks. 
+    @return: exmaple { "1": 87.882, "2": 87.882, "3": 87.882, "4": 87.882, ..., "144": 1.027, "504": 1.027 }
+    """
+    fee_estimates_url = "{endpoint}fee-estimates"
+    response = http_get(fee_estimates_url.format(
+        endpoint=getendpoint()))
+    return response.json()[str(confirmation_target)] 
 
 # def tx(txid) -> CTransaction:
 #     '''

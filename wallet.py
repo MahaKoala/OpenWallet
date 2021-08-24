@@ -12,6 +12,7 @@ import discovery
 import time
 import esplora
 import fullnode
+import math
 from config import Config
 
 '''
@@ -170,11 +171,25 @@ class Wallet:
             available_fund += found.value
 
         if fee == 0:
-            # TODO how to calculate the fee?
-            # if the inputs exceed the value of the outputs, any difference in value may be claimed as 
-            # a transaction fee by the Bitcoin miner who creates the block containing that transaction.
-            # "fee" is the difference in value.
-            fee = 200
+            # FIXME: The calculation is not accurate.
+            # calculate vbytes according to https://bitcoinops.org/en/tools/calc-size/
+            # Assumption which is valid for this Wallet:
+            # 1) input count is no geater than 252.
+            # 2) inputs are all P2WPKH
+            overhead_vbytes = 10.5
+            input_vbtyes = 68.25 * len(utxos)
+            output_vbytes = 0
+            if isinstance(destination, P2WPKHBitcoinAddress):
+                output_vbytes += 31
+            elif isinstance(destination, P2PKHBitcoinAddress) or isinstance(destination, P2SHBitcoinAddress):
+                output_vbytes += 8 + 2 + len(destination.to_scriptPubKey())
+            else:
+                raise "Unsupported address type: " + str(type(destination))
+            # Assume there is always a change address.
+            output_vbytes += 31
+
+            sats_per_vbyte = esplora.fee_estimates(1)
+            fee = math.ceil(sats_per_vbyte * (overhead_vbytes+input_vbtyes+output_vbytes))  
 
         assert available_fund >= fee + value, "Insufficient fund for sending"
         
@@ -183,7 +198,15 @@ class Wallet:
 
         txins = []
         for utxo in utxos:
-            txin = CTxIn(COutPoint(lx(utxo.txid), utxo.vout))
+            nSequence = 0xffffffff
+            if Config.EnableBip125Rfb:
+                # Explicit signaling: A transaction is considered to have opted in to allowing replacement of itself
+                # if any of its inputs have an nSequence number less than (0xffffffff - 1).
+                # Code: https://github.com/bitcoin/bitcoin/blob/v0.21.2rc1/src/validation.cpp#L610-L635
+                # BIP 125: https://github.com/bitcoin/bips/blob/master/bip-0125.mediawiki
+                nSequence = 0xfffffffd
+            txin = CTxIn(COutPoint(lx(utxo.txid), utxo.vout),
+                         nSequence=nSequence)
             txins.append(txin)
         
         # Spend to the destination.
@@ -195,7 +218,6 @@ class Wallet:
             txouts.append(CTxOut(available_fund - fee - value, chnage_address.to_scriptPubKey()))
                     
         tx = CMutableTransaction(txins, txouts)
-        
 
         logging.debug("Unsigned transaction: " + str(binascii.hexlify(tx.serialize())))
 
@@ -226,4 +248,4 @@ class Wallet:
         txid = fullnode.sendrawtransaction(tx.serialize())
         logging.debug("TXID: {}".format(txid))
         assert txid != "", "Failed to send tx"
-        return txid
+        return (txid, fee)
