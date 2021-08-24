@@ -171,7 +171,6 @@ class Wallet:
             available_fund += found.value
 
         if fee == 0:
-            # FIXME: The calculation is not accurate.
             # calculate vbytes according to https://bitcoinops.org/en/tools/calc-size/
             # Assumption which is valid for this Wallet:
             # 1) input count is no geater than 252.
