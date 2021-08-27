@@ -45,8 +45,9 @@ def existaddress(bitcoinaddr: CBitcoinAddress) -> bool:
     return False
 
 class AddressResponse:
-    def __init__(self, balance):
+    def __init__(self, balance, address):
         self.balance = balance
+        self.address = address
 
 def address(address: CBitcoinAddress) -> AddressResponse:
     addr_url = "{endpoint}address/{addr}"
@@ -56,16 +57,22 @@ def address(address: CBitcoinAddress) -> AddressResponse:
     json = response.json()
     balance = json["chain_stats"]["funded_txo_sum"] - \
         json["chain_stats"]["spent_txo_sum"]
-    response = AddressResponse(balance)
+    response = AddressResponse(balance, address)
     return response
 
 def addresses(addresses: [CBitcoinAddress]) -> List[AddressResponse]:
+    """
+    Output is not guaranteed in the some order as the input?
+    """
+    def task(index, addr): return (index, address(addr))
     future_addresses = [gThreadPoolExecutor.submit(
-        address, addr) for addr in addresses]
-    address_responses = []
+        task, i, addr) for i, addr in enumerate(addresses)]
+    address_responses = [None] * len(addresses)
+    logging.info("address_responses len" + str(len(addresses)))
     start_time = time.time()
     for future_address in as_completed(future_addresses):
-        address_responses.append(future_address.result())
+        index, addr  = future_address.result()
+        address_responses[index] = addr
     logging.debug("Took %d ms to complete addresses" % ((time.time() - start_time)*1000, ))
     return address_responses
 
@@ -86,15 +93,15 @@ def utxo(address: CBitcoinAddress) -> Set[UnspentOutput]:
     return utxos
 
 def utxos(addresses: List[CBitcoinAddress]) -> Dict[str, Set[UnspentOutput]]:
+    def task(index, addr): return (index, utxo(addr))
     future_utxos = [gThreadPoolExecutor.submit(
-        utxo, addr) for addr in addresses]
+        task, index, addr) for index, addr in enumerate(addresses)]
     utxos_response = {}
     start_time = time.time()
-    index = 0
     for future_utxo in as_completed(future_utxos):
+        index, utxos = future_utxo.result()
         address = addresses[index]
-        utxos_response[str(address)] = future_utxo.result()
-        index += 1
+        utxos_response[str(address)] = utxos
     logging.debug("Took %d ms to complete utxos" % ((time.time() - start_time)*1000, ))
     return utxos_response
 
@@ -112,6 +119,9 @@ def txout(utxo: UnspentOutput) -> CTxOut:
     return CTxOut(nValue=txout_json["value"], scriptPubKey=scriptpubkey)
 
 def txouts(utxos: List[UnspentOutput]) -> List[CTxOut]:
+    """
+    Output is not guaranteed in the some order as the input.
+    """
     future_txouts = [gThreadPoolExecutor.submit(
         txout, utxo) for utxo in utxos]
     txouts = []

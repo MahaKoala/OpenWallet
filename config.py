@@ -30,7 +30,7 @@ class Config():
     Network = NETWORK_TESTNET
 
     # Gap limit as defined in BIP 44 for account discovery.
-    GapLimit = 2
+    GapLimit = 5
 
     # The prefix of endpoint that displays bitcoin data. supports
     # 1. Bitcoin address: the link is <DashboardPrefix>/address/<address>

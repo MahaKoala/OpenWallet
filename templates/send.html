@@ -148,6 +148,7 @@
             <th>Transaction ID</th>
             <th>Vout</th>
             <th>Value</th>
+            <th>Sent</th>
             <th></th>
         </tr>
 
@@ -157,9 +158,13 @@
             <td><a href="{{g_explorer}}/tx/{{unspent_output.txid}}" target="_blank">{{unspent_output.omitted_txid}}</a></td>
             <td>{{unspent_output.vout}}</td>
             <td>{{unspent_output.value}}</td>
+            <td>{{unspent_output.sent}}</td>
             <td><input class="utxoSelector" type="checkbox" data-txid="{{unspent_output.txid}}" data-vout="{{unspent_output.vout}}" data-value="{{unspent_output.value}}" ></td>
         </tr>
         {% endfor %}
+
+        <br />
+        <br />
 
     </table>
 </body>

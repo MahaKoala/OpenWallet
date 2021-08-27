@@ -45,6 +45,8 @@ class UnspentOutput:
         self.vout = vout
         self.value = value
         self.address: CBitcoinAddress = address
+        # True if a TX has been broadcasted successfully with this utxo as input.
+        self.sent = False
 
 class Bip44Path:
     # m / purpose' / coin_type' / account' / change / address_index
@@ -80,6 +82,7 @@ class Wallet:
         self.receive_addresses: List[Address] = []
         self.new_change_addresses: List[Address] = []
         self.change_addresses: List[Address] = []
+        self.unspent_outputs: List[UnspentOutput] = []
 
         self.last_sync = time.time()
 
@@ -88,20 +91,29 @@ class Wallet:
         new_addresses = self.new_addresses if not change else self.new_change_addresses
         change_index = 0 if not change else 1
 
-        # Find the last used index of account 0.
-        last_used_index = -1
-        for address in addresses + new_addresses:
-            if address.account_no == 0 and address.address_index > last_used_index:
-                last_used_index = address.address_index
-        
-        next_index = last_used_index + 1
+        # Find the last used address index of account 0.
+        last_used_address_index = -1
+        for address in addresses:
+            if address.account_no == 0 and address.address_index > last_used_address_index:
+                last_used_address_index = address.address_index
 
-        logging.debug("next index of the new address is " + str(next_index))
-        pubkey: bytes = self._bip84_path.derive_pubkey(0, change_index, next_index)
+        new_address_index = last_used_address_index+1
+        for address in new_addresses:
+            if address.account_no == 0 and address.address_index >= new_address_index:
+                new_address_index = address.address_index + 1
+                if new_address_index - last_used_address_index + 1 > Config.GapLimit:
+                    # the new (unused) address has to be within gap limit, otherwise the address is un-discoverable.
+                    raise Exception("Attempt to generate a address that is out of the range (Gap Limit). Abort.")
+                
+        logging.debug("The index of the new address is " + \
+                      str(new_address_index))
+        pubkey: bytes = self._bip84_path.derive_pubkey(
+            0, change_index, new_address_index)
         p2wpkh = bitcoin.core.CScript([OP_0, Hash160(pubkey)])
         p2wpkh_addr = P2WPKHBitcoinAddress.from_scriptPubKey(p2wpkh)
 
-        new_addresses.append(Address(change, next_index, 0, p2wpkh_addr, 0))
+        new_addresses.append(
+            Address(change, new_address_index, 0, p2wpkh_addr, 0))
         return p2wpkh_addr
 
     def _find_seckey(self, bitcoin_address: CBitcoinAddress) -> CKey:
@@ -146,7 +158,10 @@ class Wallet:
         # sync is honored if last time sync is more than 30 seconds ago.
         threshold = 30
         if time.time() - self.last_sync > threshold:
+            start = time.time()
             self.sync()
+            interal = int((time.time() - start)*1000)
+            logging.info("Sync took {} ms.".format(interal))
             self.last_sync = time.time()
     
     def _find_unspent_output(self, txid: str, vout: int) -> UnspentOutput:
@@ -164,6 +179,8 @@ class Wallet:
             found: UnspentOutput = self._find_unspent_output(
                 utxos[i].txid, utxos[i].vout)
             assert found is not None
+            assert not isinstance(
+                utxos[i].address, P2WPKHBitcoinAddress), "Only suppprot P2WPKH UTXOs."
 
             # copy over fields
             utxos[i].value = found.value
@@ -221,14 +238,13 @@ class Wallet:
         logging.debug("Unsigned transaction: " + str(binascii.hexlify(tx.serialize())))
 
         # Signing
-        prev_txouts = esplora.txouts(utxos)
         witnesses = []
         for txin_index, txin in enumerate(txins):
             # Get SignatureHash (Transaction digest) for signing according to https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki#Native_P2WPKH
-            prev_txout: CTxOut = prev_txouts[txin_index]
-            p2wpkh_bitcoin_address: P2WPKHBitcoinAddress = P2WPKHBitcoinAddress.from_scriptPubKey(prev_txout.scriptPubKey)
+            utxo = utxos[txin_index]
+            p2wpkh_bitcoin_address: P2WPKHBitcoinAddress = utxo.address
             sighash = SignatureHash(p2wpkh_bitcoin_address.to_redeemScript(), tx, txin_index, SIGHASH_ALL,
-                                    amount=prev_txout.nValue, sigversion=SIGVERSION_WITNESS_V0)
+                                    amount=utxo.value, sigversion=SIGVERSION_WITNESS_V0)
 
             seckey: CKey = self._find_seckey(p2wpkh_bitcoin_address)
             assert seckey is not None, "Can't find privkey associated with the address"
@@ -247,4 +263,10 @@ class Wallet:
         txid = fullnode.sendrawtransaction(tx.serialize())
         logging.debug("TXID: {}".format(txid))
         assert txid != "", "Failed to send tx"
+
+        # Mark utxos as sent
+        for txin_index, txin in enumerate(txins):
+            utxo = utxos[txin_index]
+            utxo = self._find_unspent_output(utxo.txid, utxo.vout)
+            utxo.sent = True
         return (txid, fee)

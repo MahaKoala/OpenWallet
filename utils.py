@@ -35,6 +35,7 @@ class UnspentOutputView():
         self.vout = unspent_output.vout
         self.txid = unspent_output.txid
         self.omitted_txid = self.txid[0:3] + "..." + self.txid[-4:]
+        self.sent = unspent_output.sent
 
 class WalletView():
     def __init__(self, wallet_id: int, network, label):
@@ -57,10 +58,13 @@ class WalletView():
             elif show_zero_balance == 1:
                 self.addresses.append(AddressView(
                     str(addr.address), addr.balance, addr.is_change, derivation_path))
+        self.addresses.sort(key=lambda addr: addr.derivation_path.split("/"))
 
-        self.unspent_outputs = []
+        self.unspent_outputs = [] 
         for unspent_output in wallet.unspent_outputs:
             self.unspent_outputs.append(UnspentOutputView(unspent_output))     
+        self.unspent_outputs.sort(
+            key=lambda unspent_output: (unspent_output.bitcoin_address, unspent_output.txid, unspent_output.vout))
     
 gWalletMap: Dict[int, Tuple[WalletView, Wallet]]={}
 
