@@ -20,3 +20,8 @@ pyvenv.cfg
 
 .fullnode_connection*\.conf
 
+# Ignore Certificate and privkey for SSL.
+/*.pem
+/*.key
+
+access.secret
