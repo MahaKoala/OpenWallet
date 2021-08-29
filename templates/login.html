@@ -1,0 +1,15 @@
+<html>
+
+<head>
+    <title>
+        OpenWallet {{g_network_type}}
+    </title>
+    <link rel="stylesheet" href="/css/reset.css" />
+</head>
+<body>
+    <h4 id="error" style="color:firebrick">{{login_error}}</h4>
+    <form action="login" method="post">
+        <label for="passphase">Passphrase: <input type="password" name="passphrase" /></label>
+        <input type="submit" value="Login"/>
+    </form>
+</body>

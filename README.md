@@ -36,6 +36,13 @@ openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 36
 FLASK_APP=server.py FLASK_ENV=development flask run --cert=cert.pem --key=key.pem
 ```
 
+# Restrict Access with Passphase
+Run on HTTPS to avoid exposing the passphrase
+
+1. Go to `Config.py`, and set `EnableLogin` to `True`. 
+2. Run `generate_secret.py` and enter passphrase.
+3. Run the app.
+
 # Assumption on using OpenWallet
 * Only a single user per instance of OpenWallet.
 

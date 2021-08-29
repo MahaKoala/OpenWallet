@@ -20,6 +20,7 @@
 
                 fetch("/api/v1/addwallet", {
                     method: 'POST',
+                    credentials: "same-origin",
                     body: JSON.stringify({
                         nemonic: nemonic.value,
                         label: label.value

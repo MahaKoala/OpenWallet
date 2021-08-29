@@ -17,7 +17,8 @@
             if (gRequestSyncInternvalId === 0) {
                 gRequestSyncInternvalId = setInterval(() => {
                     fetch(`/api/v1/wallet/{{wallet_id}}/request_sync`, {
-                        method: 'POST'
+                        method: 'POST',
+                        credentials: "same-origin"
                     }).then((response) => {
                         if (response.status != 200) {
                             throw "Request for syncing wallet fails"
@@ -75,7 +76,12 @@
 </head>
 
 <body>
-    <h2 id="narbar"><a href="/">Home</a> <a href="/viewwallet/{{wallet_id}}/send">Send</a> <a href="/viewwallet/{{wallet_id}}/receive">Receive</a></h2>
+    <h2 id="narbar">
+        <a href="/">Home</a>
+        <a href="/viewwallet/{{wallet_id}}/send">Send</a>
+        <a href="/viewwallet/{{wallet_id}}/receive">Receive</a>
+        <a href="/logout">Logout</a>
+    </h2>
     <h2>Wallet Overview</h2>
     <p>Wallet ID: {{wallet.wallet_id}}</p>
     <p>Wallet Label: {{wallet.label}}</p>

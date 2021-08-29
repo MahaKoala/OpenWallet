@@ -59,3 +59,6 @@ class Config():
     EnableSendTx = True
 
     ThreadPoolMaxWorkers = 10
+
+    # True if the access is protected with a passphrase.
+    EnableLogin = True
