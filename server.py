@@ -49,6 +49,7 @@ def addwallet():
 @app.route('/viewwallet/<wallet_id>')
 @auth.login_required
 def viewwallet(wallet_id):
+    utils.request_sync(wallet_id)
     show_zero_balance = request.args.get(
         'show_zero_balance', default=0, type=int)
     wallet: WalletView = utils.viewwallet(int(wallet_id), show_zero_balance)
@@ -65,6 +66,7 @@ def send(wallet_id):
     if not Config.EnableSendTx:
         return jsonify({"error": "Send not supported. Please check Config"}), 400
     
+    utils.request_sync(wallet_id)
     wallet: WalletView = utils.viewwallet(int(wallet_id), 0)
     return render_template('send.html', wallet_id=wallet_id, wallet=wallet)
 
