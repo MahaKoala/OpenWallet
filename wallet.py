@@ -75,32 +75,6 @@ class Bip44Path:
         privkey: bytes = bip32_derive_privkey(self._seed, path)
         return privkey
 
-"""
-Improvment idea:
-
-When the wallet is loaded for the first time, do an initial sync like we are doing now.
-And, the subsequent wallet sync is done by update it with each new block.
-
-wallet maintains:
-1. current block height: where the wallet is sync up to (inclusive)
-2. a set of UTXOs, with index on (txid, n)
-3. a set of addresses discovered + n number of addresses after the index of last discovered 
-address, with index on str of bitcoin addreess.
-4. mempool transactions
-
-when we sync, we sync a new block one at a time for all blocks after the block height.
-for each input in the new block, we check wether the input spends one or more UTXOs in
-the Wallet, and we remove them. For each removed UTXO, we find its corresponding bitcoin 
-address, and subtract the amount. 
-For each output in the new block, we check whether output point is for one of our addresses
-
-Improvment Idea 2:
-fast update based on GET /address/:address/txs and GET /address/:address/txs/chain[/:last_seen_txid]
-
-each address will keep track of what is the last txid that has sync up to, so that only txid after it are
-applied to UTXOs and the address balance.
-
-"""
 class Wallet:
     def __init__(self, seed):
         '''
@@ -144,7 +118,14 @@ class Wallet:
             address.account_no, change, address.address_index)
         return CKey(privkey)
 
+
     def sync_addresses(self):
+        """
+        Fast update based on GET /address/:address/txs and GET /address/:address/txs/chain[/:last_seen_txid]
+
+        each address will keep track of what is the last txid that has sync up to, so that only txid after it are
+        applied to UTXOs and the address balance.
+        """
         if self.syncing:
             return
         self.syncing = True
@@ -297,7 +278,7 @@ class Wallet:
     
     def request_sync(self):
         # sync is honored if last time sync is more than 5 minutes.
-        threshold = 10 # FIXME this is temporary for debugging.
+        threshold = 5*60
         if time.time() - self.last_sync > threshold:
             self.sync_addresses()
             self.last_sync = time.time()
