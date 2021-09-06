@@ -152,7 +152,16 @@ def fee_estimates(confirmation_target=1):
     fee_estimates_url = "{endpoint}fee-estimates"
     response = http_get(fee_estimates_url.format(
         endpoint=getendpoint()))
-    return response.json()[str(confirmation_target)] 
+    return response.json()[str(confirmation_target)]
+
+def address_txs(address: CBitcoinAddress, synced_txid):
+    if synced_txid is None:
+        address_txs_url = "{}address/{}/txs".format(getendpoint(), str(address))
+    else:
+        address_txs_url = "{}address/{}/txs/chain/{}".format(
+            getendpoint(), str(address), synced_txid)
+    response = http_get(address_txs_url)
+    return response.json()
 
 # def tx(txid) -> CTransaction:
 #     '''

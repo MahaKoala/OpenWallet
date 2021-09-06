@@ -49,7 +49,7 @@ class WalletView():
 
         self.addresses: List[AddressView] = []
         
-        for addr in wallet.receive_addresses + wallet.change_addresses + wallet.new_addresses:
+        for addr in wallet.addresses_map.values():
             derivation_path = wallet.path_prefix + \
                 "/{}/{}".format(1 if addr.is_change else 0, addr.address_index)
             if addr.balance != 0:
@@ -61,7 +61,7 @@ class WalletView():
         self.addresses.sort(key=lambda addr: addr.derivation_path.split("/"))
 
         self.unspent_outputs = [] 
-        for unspent_output in wallet.unspent_outputs:
+        for unspent_output in wallet.unspent_outputs_map.values():
             self.unspent_outputs.append(UnspentOutputView(unspent_output))     
         self.unspent_outputs.sort(
             key=lambda unspent_output: (unspent_output.bitcoin_address, unspent_output.txid, unspent_output.vout))
@@ -80,9 +80,10 @@ def addwallet(nemonic: str, label: str) -> bool:
 
 def newaddress(wallet_id: int) -> str:
     wallet: Wallet = gWalletMap[wallet_id][1]
-    new_address = wallet.new_address()
-    return str(new_address)
-
+    assert len(wallet.receive_addresses) > 0, "Account 0 must be present."
+    
+    last_index = wallet.last_receive_address_index[0]
+    return str(wallet.receive_addresses[0][last_index+1].address)
 
 def viewwallet(wallet_id: int, show_zero_balance) -> WalletView:
     # Return the wallet from the cache if found.
@@ -103,7 +104,8 @@ def viewwallet(wallet_id: int, show_zero_balance) -> WalletView:
         wallet_id, network, mnemonic, label = row
         seed = Mnemonic.to_seed(mnemonic)
         wallet = Wallet(seed)
-        wallet.sync()
+        wallet.discover()
+        wallet.sync_addresses()
         wallet_view = WalletView(wallet_id, network, label)
         wallet_view._loadwallet(wallet, show_zero_balance)
         gWalletMap[wallet_id] = (wallet_view, wallet)

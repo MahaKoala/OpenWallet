@@ -10,6 +10,7 @@ import binascii
 import logging
 import discovery
 import time
+from concurrent.futures import as_completed
 import esplora
 import fullnode
 import math
@@ -33,11 +34,15 @@ def bip32_derive_privkey(seed: bytes, path: str) -> bytes:
 
 class Address:
     def __init__(self, is_change, address_index, account_no, address, balance):
-        self.is_change = is_change
+        self.is_change: bool = is_change
         self.address_index = address_index
         self.address: CBitcoinAddress = address
         self.account_no = account_no
         self.balance = balance
+        self.last_seen_txid = None
+
+    # def empty(self):
+    #     return self.last_seen_txid is None
 
 class UnspentOutput:
     def __init__(self, txid: str, vout: int, value, address):
@@ -47,6 +52,7 @@ class UnspentOutput:
         self.address: CBitcoinAddress = address
         # True if a TX has been broadcasted successfully with this utxo as input.
         self.sent = False
+        self.spent = False
 
 class Bip44Path:
     # m / purpose' / coin_type' / account' / change / address_index
@@ -69,6 +75,32 @@ class Bip44Path:
         privkey: bytes = bip32_derive_privkey(self._seed, path)
         return privkey
 
+"""
+Improvment idea:
+
+When the wallet is loaded for the first time, do an initial sync like we are doing now.
+And, the subsequent wallet sync is done by update it with each new block.
+
+wallet maintains:
+1. current block height: where the wallet is sync up to (inclusive)
+2. a set of UTXOs, with index on (txid, n)
+3. a set of addresses discovered + n number of addresses after the index of last discovered 
+address, with index on str of bitcoin addreess.
+4. mempool transactions
+
+when we sync, we sync a new block one at a time for all blocks after the block height.
+for each input in the new block, we check wether the input spends one or more UTXOs in
+the Wallet, and we remove them. For each removed UTXO, we find its corresponding bitcoin 
+address, and subtract the amount. 
+For each output in the new block, we check whether output point is for one of our addresses
+
+Improvment Idea 2:
+fast update based on GET /address/:address/txs and GET /address/:address/txs/chain[/:last_seen_txid]
+
+each address will keep track of what is the last txid that has sync up to, so that only txid after it are
+applied to UTXOs and the address balance.
+
+"""
 class Wallet:
     def __init__(self, seed):
         '''
@@ -78,100 +110,200 @@ class Wallet:
         self._bip84_path = Bip44Path(seed, 84, 0)
         self._seed = seed
         self.balance = 0
-        self.new_addresses: List[Address] = []
-        self.receive_addresses: List[Address] = []
-        self.new_change_addresses: List[Address] = []
-        self.change_addresses: List[Address] = []
-        self.unspent_outputs: List[UnspentOutput] = []
+
+        # account no -> index -> Address
+        self.receive_addresses: List[List[Address]] = []
+        # account no -> index
+        self.last_receive_address_index: List[int] = []
+
+        self.change_addresses: List[List[Address]] = []
+        self.last_change_address_index: List[int] = []
+
+        # Key is bitcoin address 
+        self.addresses_map: Map[str, Address] = {}
+        # Key is txid:n, 
+        self.unspent_outputs_map: Map[str, UnspentOutput] = {}
+        self.last_sync = 0
 
         self.last_sync = time.time()
-
-    def new_address(self, change=False) -> CBitcoinAddress:
-        addresses = self.receive_addresses if not change else self.change_addresses
-        new_addresses = self.new_addresses if not change else self.new_change_addresses
-        change_index = 0 if not change else 1
-
-        # Find the last used address index of account 0.
-        last_used_address_index = -1
-        for address in addresses:
-            if address.account_no == 0 and address.address_index > last_used_address_index:
-                last_used_address_index = address.address_index
-
-        new_address_index = last_used_address_index+1
-        for address in new_addresses:
-            if address.account_no == 0 and address.address_index >= new_address_index:
-                new_address_index = address.address_index + 1
-                if new_address_index - last_used_address_index + 1 > Config.GapLimit:
-                    # the new (unused) address has to be within gap limit, otherwise the address is un-discoverable.
-                    raise Exception("Attempt to generate a address that is out of the range (Gap Limit). Abort.")
-                
-        logging.debug("The index of the new address is " + \
-                      str(new_address_index))
-        pubkey: bytes = self._bip84_path.derive_pubkey(
-            0, change_index, new_address_index)
-        p2wpkh = bitcoin.core.CScript([OP_0, Hash160(pubkey)])
-        p2wpkh_addr = P2WPKHBitcoinAddress.from_scriptPubKey(p2wpkh)
-
-        new_addresses.append(
-            Address(change, new_address_index, 0, p2wpkh_addr, 0))
-        return p2wpkh_addr
+        self.syncing = False
+    
+    def get_new_change_address(self) -> CBitcoinAddress:
+        account_0_change_addresses= self.change_addresses[0]
+        account_0_last_index = self.last_change_address_index[0]
+        assert account_0_last_index+1 < len(account_0_change_addresses), "No unused change addresses that are reserved?"
+        return account_0_change_addresses[account_0_last_index+1].address
 
     def _find_seckey(self, bitcoin_address: CBitcoinAddress) -> CKey:
-        for address in self.change_addresses + self.receive_addresses:
-            if str(address.address) == str(bitcoin_address):
-                change = 1 if address.is_change else 0
-                privkey: bytes = self._bip84_path.derive_private_key(
-                    address.account_no, change, address.address_index)
-                return CKey(privkey)
-                # privkey_based58 = bitcoin.base58.encode(privkey)
-                # logging.debug("privkey_based58: {} and {}".format(
-                #     type(privkey_based58), privkey_based58))
-                # seckey: CBitcoinSecret = CBitcoinSecret(privkey_based58)
-        return None
+        address = self.addresses_map.get(str(bitcoin_address))
+        if address is None:
+            return None
+        
+        change = 1 if address.is_change else 0
+        privkey: bytes = self._bip84_path.derive_private_key(
+            address.account_no, change, address.address_index)
+        return CKey(privkey)
 
-    def sync(self):
-        bip84_wallet = discovery.discover_bip84_wallet(self._seed, Config.GapLimit)
-        self.balance = bip84_wallet.balance
-        self.receive_addresses: List[Address] = bip84_wallet.receive_addresses
-        self.change_addresses: List[Address] = bip84_wallet.change_addresses
+    def sync_addresses(self):
+        if self.syncing:
+            return
+        self.syncing = True
 
-        # Remove new addresses if it is found in self._receive_addresses. In other words,
-        # remove new addresses that has received some bitcoin.
-        self.new_addresses = list(filter(
-            lambda addr: addr not in self.receive_addresses, self.new_addresses))
-        self.new_change_addresses = list(filter(
-            lambda addr: addr not in self.change_addresses, self.new_change_addresses))
+        futures = []
+        for account_i in range(len(self.receive_addresses)):
+            cur_receive_addresses = self.receive_addresses[account_i]
+            for index in range(0, len(cur_receive_addresses)):
+                cur_receive_address = cur_receive_addresses[index]
+                future = esplora.gThreadPoolExecutor.submit(
+                    lambda address: self.sync_address(address.address), cur_receive_address)
+                futures.append(future)
+            
+            cur_change_addresses = self.change_addresses[account_i]
+            for index in range(0, len(cur_change_addresses)):
+                cur_change_address = cur_change_addresses[index]
+                future = esplora.gThreadPoolExecutor.submit(
+                    lambda address: self.sync_address(address.address), cur_change_address)
+                futures.append(future)
 
-        # Search for UTXOs.
-        total_spendable_addresses: List[CBitcoinAddress] = []
-        for address in self.receive_addresses + self.change_addresses:
-            total_spendable_addresses.append(address.address)
-        utxos: Dict[str, Set[UnspentOutput]] = esplora.utxos(
-            total_spendable_addresses)
+        # Wait for all addresses sync to be completed
+        start = time.time()
+        for future in as_completed(futures):
+            _ = future.result()
+            pass
 
-        self.unspent_outputs = []
-        for unspent_output_set in utxos.values():
-            for unspent_output in unspent_output_set:
-                self.unspent_outputs.append(unspent_output)
+        logging.debug("Sync addresses took {} ms with {} addresses.".format(int((time.time() - start)*1000), len(futures)))
+
+        # Add more unused addresses if any unused addresses are used after the last index
+        for addresses, last_address_index, change in [
+                (self.receive_addresses, self.last_receive_address_index, 0),
+                (self.change_addresses, self.last_change_address_index, 1)]:
+            for account_i in range(len(addresses)):
+                cur_addresses = addresses[account_i]
+                total_address_count = len(cur_addresses)
+
+                # Get the lastest last address index
+                cur_last_address_index = last_address_index[account_i]
+                updated_last_address_index = cur_last_address_index
+                for index in range(cur_last_address_index+1, total_address_count):
+                    if cur_addresses[index].last_seen_txid is not None:
+                        updated_last_address_index = index
+
+                if updated_last_address_index != cur_last_address_index:
+                    # Add more unused addresses to cover the GapLimit
+                    new_addresses_needed_count = updated_last_address_index - \
+                        cur_last_address_index
+                    index = len(cur_addresses)
+                    for _ in range(new_addresses_needed_count):
+                        pubkey: bytes = self._bip84_path.derive_pubkey(
+                            account_i, change, index)
+                        p2wpkh = bitcoin.core.CScript([OP_0, Hash160(pubkey)])
+                        p2wpkh_addr = P2WPKHBitcoinAddress.from_scriptPubKey(p2wpkh)
+                        new_address = Address(
+                            False if change == 0 else True, index, account_i, p2wpkh_addr, 0)
+                        cur_addresses.append(new_address)
+                        self.addresses_map[str(p2wpkh_addr)] = new_address
+                        index += 1
+                last_address_index[account_i] = updated_last_address_index
+
+        self.syncing = False
+
+    def _utxo_key(self, txid, n):
+        return "{}:{}".format(txid, n)
+
+    def sync_address(self, bitcoin_address: CBitcoinAddress):
+        address: Address = self.addresses_map[str(bitcoin_address)]
+        newest_tx_id = None
+
+        done = False
+        synced_txid = None
+        head_txid = None
+        while not done:
+            address_txs_json = esplora.address_txs(bitcoin_address, synced_txid)
+            confirmed_tx_count = 0
+            for tx_json in address_txs_json:
+                if not tx_json["status"]["confirmed"]:
+                    continue
+                elif head_txid is None:
+                    head_txid = tx_json["txid"]
+
+                synced_txid = tx_json["txid"]
+                confirmed_tx_count += 1
+                if synced_txid == address.last_seen_txid:
+                    done = True
+                    break
+
+                # For each vin, we find whether there is any UTXO being spent. If so,
+                # remove the UTXO and update its address balance.
+                for vin in tx_json["vin"]:
+                    prevout = vin["prevout"]
+                    if prevout["scriptpubkey_address"] == str(bitcoin_address):
+                        utxo_key = self._utxo_key(vin["txid"], vin["vout"])
+                        if utxo_key not in self.unspent_outputs_map:
+                            utxo = UnspentOutput(
+                                vin["txid"], vin["vout"], prevout["value"], bitcoin_address)
+                            utxo.spent = True
+                            self.unspent_outputs_map[utxo_key] = utxo
+                        else:
+                            utxo = self.unspent_outputs_map[utxo_key]
+                            address.balance -= utxo.value
+                            self.balance -= utxo.value
+                            assert not utxo.spent, "Double spending? txid={}, n={}".format(
+                                utxo.txid, utxo.vout)
+                            del self.unspent_outputs_map[utxo_key]
+                
+                for i in range(len(tx_json["vout"])):
+                    vout = tx_json["vout"][i]
+                    if vout["scriptpubkey_address"] == str(bitcoin_address):
+                        utxo_key = self._utxo_key(tx_json["txid"], i)
+                        if utxo_key not in self.unspent_outputs_map:
+                            utxo = UnspentOutput(
+                                tx_json["txid"], i, vout["value"], bitcoin_address)
+                            address.balance += utxo.value
+                            self.balance += utxo.value
+                            self.unspent_outputs_map[utxo_key] = utxo
+                        else:
+                            utxo = self.unspent_outputs_map[utxo_key]
+                            assert utxo.spent
+                            # Remove it since it has already been spent.
+                            del self.unspent_outputs_map[utxo_key]
+
+            if not done and confirmed_tx_count == 0:
+                done = True
+                break
+        
+        address.last_seen_txid = head_txid
+
+    def discover(self):
+        """
+        Expensive operation
+        """
+        discover_wallet_result: discovery.DiscoverWalletResult = discovery.discover_bip84_wallet(
+            self._seed, Config.GapLimit)
+        
+        self.receive_addresses = discover_wallet_result.receive_addresses
+        self.last_receive_address_index: List[int] = discover_wallet_result.last_receive_address_index
+        self.change_addresses: List[List[Address]] = discover_wallet_result.change_addresses
+        self.last_change_address_index: List[int] = discover_wallet_result.last_change_address_index
+
+        for cur_account_addresses in self.receive_addresses:
+            for address in cur_account_addresses:
+                self.addresses_map[str(address.address)] = address
+
+        for cur_account_addresses in self.change_addresses:
+            for address in cur_account_addresses:
+                self.addresses_map[str(address.address)] = address
+
+        self.sync_addresses()
     
     def request_sync(self):
-        # sync is honored if last time sync is more than 30 seconds ago.
-        threshold = 30
+        # sync is honored if last time sync is more than 5 minutes.
+        threshold = 10 # FIXME this is temporary for debugging.
         if time.time() - self.last_sync > threshold:
-            start = time.time()
-            self.sync()
-            interal = int((time.time() - start)*1000)
-            logging.info("Sync took {} ms.".format(interal))
+            self.sync_addresses()
             self.last_sync = time.time()
     
     def _find_unspent_output(self, txid: str, vout: int) -> UnspentOutput:
-        for utxo in self.unspent_outputs:
-            if utxo.txid == txid and utxo.vout == vout:
-                return utxo
-        return None
-
-    def _signrawtransactionwithkey(self):
-        pass
+        return self.unspent_outputs_map.get(self._utxo_key(txid, vout))
     
     def send(self, value: int, utxos: List[UnspentOutput], destination: CBitcoinAddress, fee=0):
         available_fund = 0
@@ -179,8 +311,8 @@ class Wallet:
             found: UnspentOutput = self._find_unspent_output(
                 utxos[i].txid, utxos[i].vout)
             assert found is not None
-            assert not isinstance(
-                utxos[i].address, P2WPKHBitcoinAddress), "Only suppprot P2WPKH UTXOs."
+            # assert not isinstance(
+            #     utxos[i].address, P2WPKHBitcoinAddress), "Only suppprot P2WPKH UTXOs."
 
             # copy over fields
             utxos[i].value = found.value
@@ -230,7 +362,7 @@ class Wallet:
         txouts.append(CTxOut(value, destination.to_scriptPubKey()))
         if (available_fund - fee - value > 0):
             # Rest of the fund goes to change address.
-            chnage_address: CBitcoinAddress = self.new_address(change=True)
+            chnage_address: CBitcoinAddress = self.get_new_change_address()
             txouts.append(CTxOut(available_fund - fee - value, chnage_address.to_scriptPubKey()))
                     
         tx = CMutableTransaction(txins, txouts)
