@@ -26,6 +26,12 @@ class AddressView():
         self.formatted_value = '{:,}'.format(value)
         self.derivation_path = derivation_path
 
+class WalletMempoolTransactionView():
+    def __init__(self, txid, value):
+        self.txid = txid
+        self.omitted_txid = self.txid[0:3] + "..." + self.txid[-4:]
+        self.value = value
+
 class UnspentOutputView():
     def __init__(self, unspent_output: UnspentOutput):
         self.bitcoin_address = str(unspent_output.address)
@@ -65,6 +71,11 @@ class WalletView():
             self.unspent_outputs.append(UnspentOutputView(unspent_output))     
         self.unspent_outputs.sort(
             key=lambda unspent_output: (unspent_output.bitcoin_address, unspent_output.txid, unspent_output.vout))
+
+        self.mempool_txs: List[WalletMempoolTransactionView] = []
+        for mempool_tx in wallet.mempool_tx_map.values():
+            self.mempool_txs.append(
+                WalletMempoolTransactionView(mempool_tx.txid, mempool_tx.value))
     
 gWalletMap: Dict[int, Tuple[WalletView, Wallet]]={}
 

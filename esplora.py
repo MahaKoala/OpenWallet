@@ -1,7 +1,7 @@
 import requests
 from requests import Response
 from bitcoin.wallet import CBitcoinAddress
-from bitcoin.core import CScript, CTxOut, CTransaction
+from bitcoin.core import CScript, CTxOut, CTransaction, lx
 from config import Config, NETWORK_MAINNET, NETWORK_TESTNET
 import binascii
 from wallet import UnspentOutput
@@ -132,16 +132,28 @@ def txouts(utxos: List[UnspentOutput]) -> List[CTxOut]:
                   ((time.time() - start_time)*1000, ))
     return txouts
 
-def tx(tx: CTransaction) -> str:
+def tx_get(txid: str):
+    tx_url = "{}tx/{}".format(getendpoint(), txid)
+    response = http_get(tx_url)
+    return response.json()
+
+def send_tx(tx: CTransaction) -> str:
     # POST /tx
     tx_url = "{endpoint}tx"
     response = requests.post(tx_url.format(
-        endpoint=getendpoint()), data=str(tx.serialize()))
+        endpoint=getendpoint()), data=binascii.hexlify(tx.serialize()).decode("ascii"))
     if response.status_code != 200:
         logging.warn("Send transaction failed: " + response.text)
         return ""
-    assert response.text() == str(tx.GetTxid())
-    return str(tx.GetTxid())
+
+    # "we convert hashes to big-endian when searching for transactions and blocks, 
+    # when internally everything else is in little-endian" from
+    # https://bitcointalk.org/index.php?topic=5201170.msg53067383#msg53067383
+    response_txid: bytes = lx(response.text)
+    logging.debug("response text={}, txid={}".format(
+        response_txid, tx.GetTxid()))
+    assert response_txid == tx.GetTxid()
+    return response.text
 
 def fee_estimates(confirmation_target=1):
     """

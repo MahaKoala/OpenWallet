@@ -55,7 +55,7 @@ class Config():
     # Reference: https://github.com/bitcoin/bips/blob/master/bip-0125.mediawiki
     EnableBip125Rfb = True
 
-    # Can be enabled only if a running Bitcoin Full Node (Bitcoin Core) 
+    # Enable sending transaction.
     EnableSendTx = True
 
     ThreadPoolMaxWorkers = 10

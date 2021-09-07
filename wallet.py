@@ -8,6 +8,7 @@ from bip32 import BIP32, HARDENED_INDEX
 import hashlib
 import binascii
 import logging
+import requests
 import discovery
 import time
 from concurrent.futures import as_completed
@@ -54,6 +55,15 @@ class UnspentOutput:
         self.sent = False
         self.spent = False
 
+class WalletMempoolTransaction:
+    def __init__(self, txid):
+        self.txid = txid
+        # Addresses are owned.
+        self.vin_addresses = []
+        self.vout_addresses = []
+        # With respect to the wallet
+        self.value = 0
+
 class Bip44Path:
     # m / purpose' / coin_type' / account' / change / address_index
     def __init__(self, seed, purpose, coin_type):
@@ -97,7 +107,11 @@ class Wallet:
         self.addresses_map: Map[str, Address] = {}
         # Key is txid:n, 
         self.unspent_outputs_map: Map[str, UnspentOutput] = {}
-        self.last_sync = 0
+
+        # Set of txid.
+        self.mempool_txids: Set[str] = set()
+        # Key is txid.
+        self.mempool_tx_map: Map[str, WalletMempoolTransaction] = {}
 
         self.last_sync = time.time()
         self.syncing = False
@@ -151,8 +165,23 @@ class Wallet:
         for future in as_completed(futures):
             _ = future.result()
             pass
-
         logging.debug("Sync addresses took {} ms with {} addresses.".format(int((time.time() - start)*1000), len(futures)))
+
+        # In each sync_address, mempool_txids are updated as well. Sync txs in mempool for newly added txids
+        futures = []
+        for txid in self.mempool_txids:
+            if txid not in self.mempool_tx_map:
+                future = esplora.gThreadPoolExecutor.submit(
+                    lambda txid: self.sync_mempool_tx(txid), txid)
+                futures.append(future)
+        
+        # Wait for all addresses sync to be completed
+        start = time.time()
+        for future in as_completed(futures):
+            _ = future.result()
+            pass
+        logging.debug("Sync mempool took {} ms with {} txids.".format(
+            int((time.time() - start)*1000), len(futures)))
 
         # Add more unused addresses if any unused addresses are used after the last index
         for addresses, last_address_index, change in [
@@ -191,6 +220,31 @@ class Wallet:
     def _utxo_key(self, txid, n):
         return "{}:{}".format(txid, n)
 
+    def sync_mempool_tx(self, txid):
+        if txid in self.mempool_tx_map:
+            return 
+        
+        tx_json = esplora.tx_get(txid)
+        vin_addresses: List[Address] = []
+        value = 0
+        for vin in tx_json["vin"]:
+            if vin["prevout"]["scriptpubkey_address"] in self.addresses_map:
+                value -= vin["prevout"]["value"]
+                vin_addresses.append(
+                    self.addresses_map[vin["prevout"]["scriptpubkey_address"]])
+        vout_addresses: List[Address] = []
+        for vout in tx_json["vout"]:
+            if vout["scriptpubkey_address"] in self.addresses_map:
+                value += vout["value"]
+                vout_addresses.append(
+                    self.addresses_map[vout["scriptpubkey_address"]])
+
+        mempool_tx = WalletMempoolTransaction(txid)
+        mempool_tx.value = value
+        mempool_tx.vin_addresses = vin_addresses
+        mempool_tx.vout_addresses = vout_addresses
+        self.mempool_tx_map[txid] = mempool_tx
+
     def sync_address(self, bitcoin_address: CBitcoinAddress):
         address: Address = self.addresses_map[str(bitcoin_address)]
         newest_tx_id = None
@@ -203,9 +257,14 @@ class Wallet:
             confirmed_tx_count = 0
             for tx_json in address_txs_json:
                 if not tx_json["status"]["confirmed"]:
+                    self.mempool_txids.add(tx_json["txid"])
                     continue
                 elif head_txid is None:
                     head_txid = tx_json["txid"]
+
+                self.mempool_txids.discard(tx_json["txid"])
+                if tx_json["txid"] in self.mempool_tx_map:
+                    del self.mempool_tx_map[tx_json["txid"]]
 
                 synced_txid = tx_json["txid"]
                 confirmed_tx_count += 1
@@ -277,8 +336,8 @@ class Wallet:
         self.sync_addresses()
     
     def request_sync(self):
-        # sync is honored if last time sync is more than 5 minutes.
-        threshold = 5*60
+        # sync is honored if last time sync is more than 10 seconds.
+        threshold = 10
         if time.time() - self.last_sync > threshold:
             self.sync_addresses()
             self.last_sync = time.time()
@@ -373,7 +432,7 @@ class Wallet:
         logging.debug("Signed transaction: " +
                       str(binascii.hexlify(tx.serialize())))
 
-        txid = fullnode.sendrawtransaction(tx.serialize())
+        txid = esplora.send_tx(tx)
         logging.debug("TXID: {}".format(txid))
         assert txid != "", "Failed to send tx"
 

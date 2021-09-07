@@ -102,8 +102,24 @@
             <td>{{address.derivation_path}}</td>
         </tr>
         {% endfor %}
-
     </table>
+
+    <h3>Pending Transcations</h3>
+    <table>
+        <tr>
+            <th>TXID</th>
+            <th>Value</th>
+        </tr>
+    
+        {% for tx in wallet.mempool_txs: %}
+        <tr>
+            <td><a href="{{g_explorer}}/tx/{{tx.txid}}"
+                    target="_blank">{{tx.omitted_txid}}</a></td>
+            <td>{{tx.value}}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
 </body>
 
 </html>
