@@ -37,7 +37,8 @@ class UnspentOutputView():
         self.bitcoin_address = str(unspent_output.address)
         self.omitted_bitcoin_address = self.bitcoin_address[0:4] + \
             "..." + self.bitcoin_address[-4:]
-        self.value = '{:,}'.format(unspent_output.value)
+        self.formatted_value = '{:,}'.format(unspent_output.value)
+        self.value = unspent_output.value
         self.vout = unspent_output.vout
         self.txid = unspent_output.txid
         self.omitted_txid = self.txid[0:3] + "..." + self.txid[-4:]
@@ -146,11 +147,20 @@ def loadwallets() -> List[WalletView]:
                 wallets.append(WalletView(wallet_id, network, label))
     return wallets
 
-def send(wallet_id: int, value: int, utxos: List[Tuple[str, int]], destination: str) -> Tuple[str, int]:
+def send(wallet_id: int, value: int, fee: int, utxos: List[Tuple[str, int]], destination: str) -> Tuple[str, int]:
     unspent_outputs = [UnspentOutput(
         utxo[0], utxo[1], None, None) for utxo in utxos]
     bitcoin_address = bitcoin.wallet.CBitcoinAddress(destination)
 
     assert wallet_id in gWalletMap, "Wallet not found."
     wallet: Wallet = gWalletMap[wallet_id][1]
-    return wallet.send(value, unspent_outputs, bitcoin_address)
+    return wallet.send(value, unspent_outputs, bitcoin_address, fee=fee)
+
+def fee_estimates(wallet_id: int, utxos: List[Tuple[str, int]], destination: str) -> int:
+    unspent_outputs = [UnspentOutput(
+        utxo[0], utxo[1], None, None) for utxo in utxos]
+    bitcoin_address = bitcoin.wallet.CBitcoinAddress(destination)
+    assert wallet_id in gWalletMap, "Wallet not found."
+    wallet: Wallet = gWalletMap[wallet_id][1]
+
+    return wallet.fee_estimates(unspent_outputs, bitcoin_address)

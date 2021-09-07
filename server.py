@@ -139,10 +139,25 @@ def api_send(wallet_id):
 
     req = json.loads(request.data)
     value = int(req["value"])
+    fee = int(req["fee"])
     utxos: List[Tuple[str, int]] = []
     for utxo in req["utxos"]:
         utxos.append((utxo["txid"], int(utxo["vout"])))
 
-    txid, fee = utils.send(int(wallet_id), value, utxos, req["destination"])
-    return jsonify({"txid": txid, "fee": fee}), 200
+    txid, fee = utils.send(int(wallet_id), value, fee, utxos, req["destination"])
+    return jsonify({"txid": txid}), 200
 
+
+@app.route('/api/v1/wallet/<wallet_id>/fee_estimates', methods=['POST'])
+@auth.login_required
+def api_fee_estimates(wallet_id):
+    if not Config.EnableSendTx:
+        return jsonify({"error": "Send not supported. Please check Config"}), 400
+
+    req = json.loads(request.data)
+    utxos: List[Tuple[str, int]] = []
+    for utxo in req["utxos"]:
+        utxos.append((utxo["txid"], int(utxo["vout"])))
+
+    fee = utils.fee_estimates(int(wallet_id), utxos, req["destination"])
+    return jsonify({"fee": fee}), 200

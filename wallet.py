@@ -337,13 +337,36 @@ class Wallet:
     
     def request_sync(self):
         # sync is honored if last time sync is more than 10 seconds.
-        threshold = 10
+        threshold = 20
         if time.time() - self.last_sync > threshold:
             self.sync_addresses()
             self.last_sync = time.time()
     
     def _find_unspent_output(self, txid: str, vout: int) -> UnspentOutput:
         return self.unspent_outputs_map.get(self._utxo_key(txid, vout))
+
+    def fee_estimates(self, utxos, destination):
+        # calculate vbytes according to https://bitcoinops.org/en/tools/calc-size/
+        # Assumption which is valid for this Wallet:
+        # 1) input count is no geater than 252.
+        # 2) inputs are all P2WPKH
+        overhead_vbytes = 10.5
+        input_vbtyes = 68.25 * len(utxos)
+        output_vbytes = 0
+        if isinstance(destination, P2WPKHBitcoinAddress):
+            output_vbytes += 31
+        elif isinstance(destination, P2PKHBitcoinAddress) or isinstance(destination, P2SHBitcoinAddress):
+            output_vbytes += 8 + 2 + len(destination.to_scriptPubKey())
+        else:
+            raise "Unsupported address type: " + str(type(destination))
+        # Assume there is always a change address.
+        output_vbytes += 31
+
+        sats_per_vbyte = esplora.fee_estimates(1)
+        fee = math.ceil(sats_per_vbyte *
+                        (overhead_vbytes+input_vbtyes+output_vbytes))
+
+        return fee
     
     def send(self, value: int, utxos: List[UnspentOutput], destination: CBitcoinAddress, fee=0):
         available_fund = 0
@@ -360,24 +383,7 @@ class Wallet:
             available_fund += found.value
 
         if fee == 0:
-            # calculate vbytes according to https://bitcoinops.org/en/tools/calc-size/
-            # Assumption which is valid for this Wallet:
-            # 1) input count is no geater than 252.
-            # 2) inputs are all P2WPKH
-            overhead_vbytes = 10.5
-            input_vbtyes = 68.25 * len(utxos)
-            output_vbytes = 0
-            if isinstance(destination, P2WPKHBitcoinAddress):
-                output_vbytes += 31
-            elif isinstance(destination, P2PKHBitcoinAddress) or isinstance(destination, P2SHBitcoinAddress):
-                output_vbytes += 8 + 2 + len(destination.to_scriptPubKey())
-            else:
-                raise "Unsupported address type: " + str(type(destination))
-            # Assume there is always a change address.
-            output_vbytes += 31
-
-            sats_per_vbyte = esplora.fee_estimates(1)
-            fee = math.ceil(sats_per_vbyte * (overhead_vbytes+input_vbtyes+output_vbytes))  
+            fee = self.fee_estimates(value, utxos, destination)
 
         assert available_fund >= fee + value, "Insufficient fund for sending"
         

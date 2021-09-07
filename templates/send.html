@@ -17,6 +17,7 @@
         document.addEventListener("DOMContentLoaded", () => {
             window.gUtxos = {}
             window.gTotalUtxosValue = 0
+            window.gSendPayload = {}
             // < input id = "amountInput" type = "text" /> <button id="sendBtn">Send</button>
 
             const showError= document.querySelector("#error");
@@ -24,6 +25,7 @@
             const amountInput = document.querySelector("#amountInput");
             const destinationInput = document.querySelector("#destinationInput");
             const sendBtn = document.querySelector("#sendBtn");
+            const confirmBtn = document.querySelector("#confirmBtn");
 
             sendBtn.addEventListener("click", () => {
                 showError.innerHTML = "";
@@ -49,34 +51,59 @@
                     return;
                 }
 
-                const sendRequest = {
+                feeEstimates = {
                     utxos: Object.values(gUtxos),
-                    value: valueSend,
                     destination: destinationInput.value
                 }
-                fetch("/api/v1/wallet/{{wallet_id}}/send", {
+                fetch("/api/v1/wallet/{{wallet_id}}/fee_estimates", {
                     method: 'POST',
                     credentials: "same-origin",
-                    body: JSON.stringify(sendRequest)
+                    body: JSON.stringify(feeEstimates)
                 }).then((response) => {
                     return response.json();
                 }).then(payload => {
                     if (payload["error"]) {
                         throw payload["error"]
                     }
-                    showSuccess.innerHTML = "Sent. TXID is " + payload["txid"] + " with fee " + payload["fee"]
+                    // TXID is " + payload["txid"] + " with fee " + payload["fee"]
+                    showSuccess.innerHTML = `Please confirm: Send <b>${valueSend}</b> Satoshi to <b>${destinationInput.value}</b> with <b>${payload["fee"]}</b> fee.` 
+                    window.gSendPayload =  {
+                        utxos: Object.values(gUtxos),
+                        value: valueSend,
+                        destination: destinationInput.value,
+                        fee: payload["fee"]
+                    }
                     sendBtn.classList.add("hide")
+                    confirmBtn.classList.remove("hide")
                 }).catch(errorMessage => {
                     error.innerHTML = errorMessage;
                 });
             })
+
+            confirmBtn.addEventListener("click", () => {
+                fetch("/api/v1/wallet/{{wallet_id}}/send", {
+                    method: 'POST',
+                    credentials: "same-origin",
+                    body: JSON.stringify(window.gSendPayload)
+                }).then((response) => {
+                    return response.json();
+                }).then(payload => {
+                    if (payload["error"]) {
+                        throw payload["error"]
+                    }
+                    showSuccess.innerHTML = "Sent: TXID is " + payload["txid"]
+                    confirmBtn.classList.add("hide")
+                }).catch(errorMessage => {
+                    error.innerHTML = errorMessage;
+                });
+            });
 
             const utxoSelectors = document.querySelectorAll(".utxoSelector");
             utxoSelectors.forEach((utxoSelector) => {
                 utxoSelector.addEventListener('change', function () {
                     const txid = utxoSelector.dataset.txid;
                     const vout = utxoSelector.dataset.vout;
-                    const value = utxoSelector.dataset.value;
+                    const value = parseInt(utxoSelector.dataset.value);
                     if (this.checked) {
                         gUtxos[txid + ":" + vout] = { txid, vout, value }
                         gTotalUtxosValue += value;
@@ -86,46 +113,7 @@
                     }
                 })
             })
-
         });
-
-        // // doc: https://developer.mozilla.org/en-US/docs/Web/API/Document/visibilityState
-        // document.addEventListener("visibilitychange", function () {
-        //     if (document.visibilityState === "visible") {
-        //         setupRequestSync();
-        //     } else if (document.visibilityState === "hidden") {
-        //         removeRequestSync();
-        //     } else {
-        //         console.log("Unhandled visibilityState: " + document.visibilityState);
-        //     }
-        // });
-
-        // document.addEventListener("DOMContentLoaded", () => {
-        //     let error = document.querySelector("#error");
-        //     let success = document.querySelector("#success");
-        //     setupRequestSync();
-
-        //     // 0-balance address button
-        //     const url = new URL(window.location);
-        //     let showZeroBalance = document.querySelector("#show-zero-balance");
-        //     if (url.searchParams.get("show_zero_balance") === "1") {
-        //         showZeroBalance.innerHTML = "Hide 0-balance Addresses"
-        //         showZeroBalance.addEventListener("click", () => {
-        //             let search_params = new URLSearchParams(url.search);
-        //             search_params.set("show_zero_balance", "0")
-        //             url.search = search_params.toString();
-        //             window.location = url.toString()
-        //         });
-        //     } else {
-        //         showZeroBalance.innerHTML = "Show 0-balance Addresses"
-        //         showZeroBalance.addEventListener("click", () => {
-        //             let search_params = new URLSearchParams(url.search);
-        //             search_params.set("show_zero_balance", "1")
-        //             url.search = search_params.toString();
-        //             window.location = url.toString()
-        //         });
-        //     }
-        // });
 
     </script>
 </head>
@@ -140,6 +128,7 @@
     <p><label> Amount: <input id="amountInput" type="text" /> </label></p>
     <p><label> Destination: <input id="destinationInput" type="text" size="50"/></label></p>
     <button id="sendBtn">Send</button>
+    <button id="confirmBtn" class="hide">Confirm</button>
 
     <h4 id="error" style="color:firebrick"></h4>
     <h4 id="success" style="color:green"></h4>
@@ -158,7 +147,7 @@
             <td><a href="{{g_explorer}}/address/{{unspent_output.bitcoin_address}}" target="_blank">{{unspent_output.omitted_bitcoin_address}}</a></td>
             <td><a href="{{g_explorer}}/tx/{{unspent_output.txid}}" target="_blank">{{unspent_output.omitted_txid}}</a></td>
             <td>{{unspent_output.vout}}</td>
-            <td>{{unspent_output.value}}</td>
+            <td>{{unspent_output.formatted_value}}</td>
             <td>{{unspent_output.sent}}</td>
             <td><input class="utxoSelector" type="checkbox" data-txid="{{unspent_output.txid}}" data-vout="{{unspent_output.vout}}" data-value="{{unspent_output.value}}" ></td>
         </tr>
