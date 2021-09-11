@@ -156,7 +156,7 @@ def send(wallet_id: int, value: int, fee: int, utxos: List[Tuple[str, int]], des
     wallet: Wallet = gWalletMap[wallet_id][1]
     return wallet.send(value, unspent_outputs, bitcoin_address, fee=fee)
 
-def fee_estimates(wallet_id: int, utxos: List[Tuple[str, int]], destination: str) -> int:
+def fee_estimates(wallet_id: int, utxos: List[Tuple[str, int]], destination: str) -> Dict[int, int]:
     unspent_outputs = [UnspentOutput(
         utxo[0], utxo[1], None, None) for utxo in utxos]
     bitcoin_address = bitcoin.wallet.CBitcoinAddress(destination)

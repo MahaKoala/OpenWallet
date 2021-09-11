@@ -2,7 +2,7 @@ from bitcoin.core.serialize import Hash160
 from bitcoin.wallet import CBitcoinAddress, P2PKHBitcoinAddress, P2SHBitcoinAddress, P2WPKHBitcoinAddress, CKey
 from bitcoin.core import COutPoint, CTransaction, lx, CTxIn, CTxOut, CMutableTransaction, CTxInWitness, CScriptWitness, CTxWitness
 from bitcoin.core.script import OP_0, OP_CHECKSIG, OP_DUP, OP_EQUAL, OP_EQUALVERIFY, OP_HASH160, CScript, SignatureHash, SIGHASH_ALL, SIGVERSION_WITNESS_V0
-from typing import List, Set
+from typing import List, Set, Dict
 from bitcoin import bitcoin
 from bip32 import BIP32, HARDENED_INDEX
 import hashlib
@@ -345,7 +345,7 @@ class Wallet:
     def _find_unspent_output(self, txid: str, vout: int) -> UnspentOutput:
         return self.unspent_outputs_map.get(self._utxo_key(txid, vout))
 
-    def fee_estimates(self, utxos, destination):
+    def fee_estimates(self, utxos, destination) -> Dict[int, int]:
         # calculate vbytes according to https://bitcoinops.org/en/tools/calc-size/
         # Assumption which is valid for this Wallet:
         # 1) input count is no geater than 252.
@@ -362,11 +362,18 @@ class Wallet:
         # Assume there is always a change address.
         output_vbytes += 31
 
-        sats_per_vbyte = esplora.fee_estimates(1)
-        fee = math.ceil(sats_per_vbyte *
-                        (overhead_vbytes+input_vbtyes+output_vbytes))
+        feerate_per_target = esplora.fee_estimates()
+        confirmation_targets = [1, 6, 24*6]
+        fee_per_target = {}
+        for target in confirmation_targets:
+            assert str(target) in feerate_per_target, "confirmation_target {} is not found in {}".format(
+                str, feerate_per_target)
+            sats_per_vbyte = feerate_per_target[str(target)]
+            fee = math.ceil(sats_per_vbyte *
+                            (overhead_vbytes+input_vbtyes+output_vbytes))
+            fee_per_target[target] = fee
 
-        return fee
+        return fee_per_target
     
     def send(self, value: int, utxos: List[UnspentOutput], destination: CBitcoinAddress, fee=0):
         available_fund = 0

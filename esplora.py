@@ -155,7 +155,7 @@ def send_tx(tx: CTransaction) -> str:
     assert response_txid == tx.GetTxid()
     return response.text
 
-def fee_estimates(confirmation_target=1):
+def fee_estimates():
     """
     Get an object where the key is the confirmation target (in number of blocks) and the value is the estimated feerate (in sat/vB).
     The available confirmation targets are 1-25, 144, 504 and 1008 blocks. 
@@ -164,7 +164,7 @@ def fee_estimates(confirmation_target=1):
     fee_estimates_url = "{endpoint}fee-estimates"
     response = http_get(fee_estimates_url.format(
         endpoint=getendpoint()))
-    return response.json()[str(confirmation_target)]
+    return response.json()
 
 def address_txs(address: CBitcoinAddress, synced_txid):
     if synced_txid is None:

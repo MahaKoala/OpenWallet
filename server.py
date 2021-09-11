@@ -159,5 +159,6 @@ def api_fee_estimates(wallet_id):
     for utxo in req["utxos"]:
         utxos.append((utxo["txid"], int(utxo["vout"])))
 
-    fee = utils.fee_estimates(int(wallet_id), utxos, req["destination"])
-    return jsonify({"fee": fee}), 200
+    fee_per_target = utils.fee_estimates(
+        int(wallet_id), utxos, req["destination"])
+    return jsonify({"fee_per_target": fee_per_target}), 200

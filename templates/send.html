@@ -18,16 +18,18 @@
             window.gUtxos = {}
             window.gTotalUtxosValue = 0
             window.gSendPayload = {}
-            // < input id = "amountInput" type = "text" /> <button id="sendBtn">Send</button>
 
             const showError= document.querySelector("#error");
             const showSuccess = document.querySelector("#success");
             const amountInput = document.querySelector("#amountInput");
             const destinationInput = document.querySelector("#destinationInput");
+            const feeCustomInput = document.querySelector("#feeCustomInput");
+            const estimateBtn = document.querySelector("#estimateBtn");
+            const nextBtn = document.querySelector("#nextBtn");
             const sendBtn = document.querySelector("#sendBtn");
-            const confirmBtn = document.querySelector("#confirmBtn");
+            const feeSelection = document.querySelector("#feeSelection");
 
-            sendBtn.addEventListener("click", () => {
+            estimateBtn.addEventListener("click", () => {
                 showError.innerHTML = "";
                 showSuccess.innerHTML = "";
                 if (amountInput.value === "") {
@@ -65,22 +67,91 @@
                     if (payload["error"]) {
                         throw payload["error"]
                     }
-                    // TXID is " + payload["txid"] + " with fee " + payload["fee"]
-                    showSuccess.innerHTML = `Please confirm: Send <b>${valueSend}</b> Satoshi to <b>${destinationInput.value}</b> with <b>${payload["fee"]}</b> fee.` 
-                    window.gSendPayload =  {
+
+                    const fee_per_target = payload["fee_per_target"];
+                    if (!fee_per_target[1] ||  !fee_per_target[6] || !fee_per_target[144]) {
+                        throw "Unable to estimate fee?";
+                    }
+
+                    // Show the fee selection div
+                    const labelBlock1 = document.querySelector("#labelBlock1");
+                    const labelBlock6 = document.querySelector("#labelBlock6");
+                    const labelBlock144 = document.querySelector("#labelBlock144");
+                    const feeBlock1 = document.querySelector("#feeBlock1");
+                    const feeBlock6 = document.querySelector("#feeBlock6");
+                    const feeBlock144 = document.querySelector("#feeBlock144");                    
+
+                    labelBlock1.innerHTML = fee_per_target[1];
+                    labelBlock6.innerHTML = fee_per_target[6];
+                    labelBlock144.innerHTML = fee_per_target[144];
+                    feeBlock1.setAttribute("value", fee_per_target[1]);
+                    feeBlock6.setAttribute("value", fee_per_target[6]);
+                    feeBlock144.setAttribute("value", fee_per_target[144]);
+
+                    // Prevent modifying the amount or destination.
+                    amountInput.setAttribute("disabled", 1);
+                    destinationInput.setAttribute("disabled", 1);
+                    utxoSelectors.forEach((utxoSelector) => {
+                        utxoSelector.setAttribute("disabled", 1);
+                    });
+
+                    // Save the entered data.
+                    gSendPayload = {
                         utxos: Object.values(gUtxos),
                         value: valueSend,
                         destination: destinationInput.value,
-                        fee: payload["fee"]
                     }
-                    sendBtn.classList.add("hide")
-                    confirmBtn.classList.remove("hide")
+
+                    showSuccess.innerHTML = "Please select a fee, or enter a custom amount."
+                    
+                    estimateBtn.classList.add("hide");
+                    feeSelection.classList.remove("hide");
+                    nextBtn.classList.remove("hide");
                 }).catch(errorMessage => {
                     error.innerHTML = errorMessage;
                 });
             })
 
-            confirmBtn.addEventListener("click", () => {
+            nextBtn.addEventListener("click", () => {
+                showError.innerHTML = "";
+                showSuccess.innerHTML = "";
+                try {
+                    // Retrieve fee
+                    let feeAmount = undefined;
+                    const feeRadios = document.querySelectorAll(".feeRadio");
+                    feeRadios.forEach((feeRadio) => {
+                        if (feeRadio.checked) {
+                            feeAmount = feeRadio.value;
+                        }
+                    });
+
+                    if (feeCustomInput.value) {
+                        feeAmount = feeCustomInput.value;
+                    }
+
+                    feeAmount = parseInt(feeAmount);
+                    if (!feeAmount) {
+                        throw "Please enter a valid fee";
+                    }
+                    
+                    gSendPayload["fee"] = feeAmount;
+                    
+                    showSuccess.innerHTML = `
+                        Please confirm: 
+                        Send <b>${gSendPayload.value}</b> Satoshi 
+                        to <b>${gSendPayload.destination}</b> 
+                        with <b>${feeAmount}</b> fee.
+                    `;
+                    
+                    nextBtn.classList.add("hide")
+                    sendBtn.classList.remove("hide")
+                } catch (errorMessage) {
+                    error.innerHTML = errorMessage;
+
+                }
+            })
+
+            sendBtn.addEventListener("click", () => {
                 fetch("/api/v1/wallet/{{wallet_id}}/send", {
                     method: 'POST',
                     credentials: "same-origin",
@@ -92,7 +163,7 @@
                         throw payload["error"]
                     }
                     showSuccess.innerHTML = "Sent: TXID is " + payload["txid"]
-                    confirmBtn.classList.add("hide")
+                    sendBtn.classList.add("hide")
                 }).catch(errorMessage => {
                     error.innerHTML = errorMessage;
                 });
@@ -127,8 +198,29 @@
 
     <p><label> Amount: <input id="amountInput" type="text" /> </label></p>
     <p><label> Destination: <input id="destinationInput" type="text" size="50"/></label></p>
-    <button id="sendBtn">Send</button>
-    <button id="confirmBtn" class="hide">Confirm</button>
+
+    <div class="hide" id="feeSelection">
+        <p>Select fee:</p>
+        <div>
+            <input class="feeRadio" type="radio" id="feeBlock1" name="fee" value="1" checked>
+            <label id="labelBlock1"></label> (10 minutes)
+        </div>
+        
+        <div>
+            <input class="feeRadio" type="radio" id="feeBlock6" name="fee" value="6">
+            <label id="labelBlock6"></label> (1 hour)
+        </div>
+        <div>
+            <input class="feeRadio" type="radio" id="feeBlock144" name="fee" value="144">
+            <label id="labelBlock144"></label> (1 day)
+        </div>
+
+        <p><label> Custom Amount: <input id="feeCustomInput" type="text" /> </label></p>
+    </div>
+
+    <button id="estimateBtn">Estimate Fee</button>
+    <button id="nextBtn" class="hide">Next</button>
+    <button id="sendBtn" class="hide">Send</button>
 
     <h4 id="error" style="color:firebrick"></h4>
     <h4 id="success" style="color:green"></h4>
